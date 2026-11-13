@@ -217,7 +217,8 @@ def render_assessment(
     st.header("Triage report")
     if pair_label:
         st.caption(pair_label)
-    st.write(assessment.summary)
+    with st.container(border=True):
+        st.write(assessment.summary)
     if model_settings:
         st.caption(
             f"Qwen settings: temperature {model_settings['temperature']:.2f} · "
@@ -248,21 +249,24 @@ def render_assessment(
             ("Personal injury", assessment.personal_injury),
         ]
         for title, finding in categories:
-            status = str(finding.get("status", "unknown")).replace("_", " ").title()
-            st.markdown(f"**{title} · {status}**")
-            if finding.get("severity"):
-                st.caption(f"Severity: {finding['severity']}")
-            st.write(finding.get("evidence", "Not established from these images."))
+            with st.container(border=True):
+                status = str(finding.get("status", "unknown")).replace("_", " ").title()
+                st.markdown(f"**{title} · {status}**")
+                if finding.get("severity"):
+                    st.caption(f"Severity: {finding['severity']}")
+                st.write(finding.get("evidence", "Not established from these images."))
     with limitations_tab:
         limitations = [item[:180] for item in assessment.limitations[:3]]
         if limitations:
             for limitation in limitations:
-                st.markdown(f"- {limitation}")
+                with st.container(border=True):
+                    st.write(limitation)
         else:
-            st.write(
-                "Image resolution, view angle, and occlusion may hide damage. "
-                "The photos cannot verify conditions inside structures or below floodwater."
-            )
+            with st.container(border=True):
+                st.write(
+                    "Image resolution, view angle, and occlusion may hide damage. "
+                    "The photos cannot verify conditions inside structures or below floodwater."
+                )
 
     st.download_button(
         "Download report as JSON",
@@ -277,7 +281,9 @@ def render_impact_section(impact: dict, keys: list[str]) -> None:
     """Render image-based citizen or city observations from Qwen."""
     for key in keys:
         label = key.replace("_", " ").title()
-        st.markdown(f"**{label}:** {impact.get(key) or 'Not established from these images.'}")
+        with st.container(border=True):
+            st.markdown(f"**{label}**")
+            st.write(impact.get(key) or "Not established from these images.")
 
 
 if __name__ == "__main__":
