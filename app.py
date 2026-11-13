@@ -96,57 +96,41 @@ def main() -> None:
             step=256,
             help="Limits response length. Larger values can take longer.",
         )
-        st.header("Choose imagery")
-        source = st.radio(
-            "Image source",
-            ["UTSA dataset pair", "Upload my own pair"],
-            help="Dataset images are fetched only when selected.",
-        )
+        st.header("UTSA dataset pair")
         pair: ImagePair | None = None
         before_image: Image.Image | None = None
         after_image: Image.Image | None = None
 
-        if source == "UTSA dataset pair":
-            try:
-                pairs = available_pairs()
-                if not pairs:
-                    st.error("No linked before/response pairs were found in the dataset metadata.")
-                else:
-                    localities = sorted(
-                        {item.before.locality for item in pairs if item.before.locality}
-                    )
-                    city_area = st.selectbox(
-                        "City / area",
-                        ["All cities and areas", *localities],
-                        help="Uses dataset locality labels; some are neighborhoods, rivers, or regions rather than incorporated cities.",
-                    )
-                    filtered_pairs = filter_pairs_by_locality(
-                        pairs,
-                        None if city_area == "All cities and areas" else city_area,
-                    )
-                    pair = st.selectbox(
-                        "Location / event",
-                        filtered_pairs,
-                        format_func=lambda item: item.label,
-                    )
-                    before_image = load_dataset_image(pair.before.image_id, pair.before.image_path)
-                    after_image = load_dataset_image(pair.after.image_id, pair.after.image_path)
-                    st.caption(
-                        f"Before: {pair.before.acquisition_date or 'date unavailable'} · "
-                        f"After: {pair.after.acquisition_date or 'date unavailable'}"
-                    )
-            except Exception as exc:
-                st.error(f"Could not load the dataset: {exc}")
-        else:
-            before_file = st.file_uploader(
-                "Before image", type=["jpg", "jpeg", "png", "webp"], key="before"
-            )
-            after_file = st.file_uploader(
-                "After image", type=["jpg", "jpeg", "png", "webp"], key="after"
-            )
-            if before_file and after_file:
-                before_image = Image.open(before_file).convert("RGB")
-                after_image = Image.open(after_file).convert("RGB")
+        try:
+            pairs = available_pairs()
+            if not pairs:
+                st.error("No linked before/response pairs were found in the dataset metadata.")
+            else:
+                localities = sorted(
+                    {item.before.locality for item in pairs if item.before.locality}
+                )
+                city_area = st.selectbox(
+                    "City / area",
+                    ["All cities and areas", *localities],
+                    help="Uses dataset locality labels; some are neighborhoods, rivers, or regions rather than incorporated cities.",
+                )
+                filtered_pairs = filter_pairs_by_locality(
+                    pairs,
+                    None if city_area == "All cities and areas" else city_area,
+                )
+                pair = st.selectbox(
+                    "Location / event",
+                    filtered_pairs,
+                    format_func=lambda item: item.label,
+                )
+                before_image = load_dataset_image(pair.before.image_id, pair.before.image_path)
+                after_image = load_dataset_image(pair.after.image_id, pair.after.image_path)
+                st.caption(
+                    f"Before: {pair.before.acquisition_date or 'date unavailable'} · "
+                    f"After: {pair.after.acquisition_date or 'date unavailable'}"
+                )
+        except Exception as exc:
+            st.error(f"Could not load the dataset: {exc}")
 
         st.divider()
         st.caption("Model endpoint: " + os.getenv("QWEN_BASE_URL", "http://127.0.0.1:8000/v1"))
@@ -159,10 +143,7 @@ def main() -> None:
 
     if before_image is None or after_image is None:
         st.subheader("Compare a location across time")
-        st.write(
-            "Choose a linked UTSA image pair or upload your own. The report uses only "
-            "visible evidence from the two images."
-        )
+        st.write("Choose a UTSA dataset pair. The report uses only visible evidence from the two images.")
         return
 
     before_column, after_column = st.columns(2)

@@ -5,7 +5,6 @@ Streamlit app for comparing before-and-after flood imagery and producing a cauti
 ## Features
 
 - Browse linked before/response pairs from [UTSA Flood Images](https://huggingface.co/datasets/jennifer-fowler/UTSA-flood-images). Metadata is loaded first; image files download on demand.
-- Upload an image pair for a separate comparison.
 - Ask a local Qwen vision model about visible household and city impacts, infrastructure hazards, and an illustrative cost range.
 - Reports contain three tabs: impact, observed changes, and short image-based limitations.
 - Download the result as JSON.
