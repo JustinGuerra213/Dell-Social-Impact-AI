@@ -19,10 +19,14 @@ class LocalQwenAnalyzer:
         self,
         base_url: str,
         model: str,
+        temperature: float = 0.1,
+        max_tokens: int = 2000,
         timeout_seconds: int = 240,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
+        self.temperature = temperature
+        self.max_tokens = max_tokens
         self.timeout_seconds = timeout_seconds
 
     def analyze(self, before: Image.Image, after: Image.Image) -> DamageAssessment:
@@ -31,8 +35,8 @@ class LocalQwenAnalyzer:
         after_data = self._data_url(after)
         payload = {
             "model": self.model,
-            "temperature": 0.1,
-            "max_tokens": 2000,
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
             "messages": [
                 {
                     "role": "system",

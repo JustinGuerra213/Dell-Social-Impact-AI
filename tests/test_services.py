@@ -6,6 +6,9 @@ import csv
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
+
+from PIL import Image
 
 from flood_app.analyzer import LocalQwenAnalyzer
 from flood_app.dataset import DatasetRepository
@@ -82,6 +85,26 @@ class LocalQwenAnalyzerTests(unittest.TestCase):
     def test_parse_json_rejects_non_json(self) -> None:
         with self.assertRaises(ValueError):
             LocalQwenAnalyzer._parse_json("No structured answer")
+
+    @patch("flood_app.analyzer.requests.post")
+    def test_analyze_sends_selected_generation_settings(self, post: Mock) -> None:
+        response = Mock()
+        response.json.return_value = {
+            "choices": [{"message": {"content": '{"summary":"ok"}'}}]
+        }
+        post.return_value = response
+        analyzer = LocalQwenAnalyzer(
+            "http://localhost:8000/v1",
+            "local-qwen",
+            temperature=0.65,
+            max_tokens=768,
+        )
+
+        analyzer.analyze(Image.new("RGB", (2, 2)), Image.new("RGB", (2, 2)))
+
+        payload = post.call_args.kwargs["json"]
+        self.assertEqual(payload["temperature"], 0.65)
+        self.assertEqual(payload["max_tokens"], 768)
 
 
 if __name__ == "__main__":

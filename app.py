@@ -31,11 +31,13 @@ def available_pairs() -> list[ImagePair]:
 
 
 @st.cache_resource
-def qwen_analyzer() -> LocalQwenAnalyzer:
+def qwen_analyzer(temperature: float, max_tokens: int) -> LocalQwenAnalyzer:
     """Create the local Qwen API client."""
     return LocalQwenAnalyzer(
         base_url=os.getenv("QWEN_BASE_URL", "http://127.0.0.1:8000/v1"),
         model=os.getenv("QWEN_MODEL", "Qwen/Qwen3-VL-8B-Instruct"),
+        temperature=temperature,
+        max_tokens=max_tokens,
     )
 
 
@@ -78,6 +80,23 @@ def main() -> None:
     )
 
     with st.sidebar:
+        st.header("Model settings")
+        temperature = st.slider(
+            "Temperature",
+            min_value=0.0,
+            max_value=1.0,
+            value=0.1,
+            step=0.05,
+            help="Lower values make responses more consistent; higher values allow more variation.",
+        )
+        max_tokens = st.number_input(
+            "Maximum response tokens",
+            min_value=256,
+            max_value=4096,
+            value=2000,
+            step=256,
+            help="Limits the length of the model response. Larger values can take longer.",
+        )
         st.header("Choose imagery")
         source = st.radio(
             "Image source",
@@ -151,9 +170,15 @@ def main() -> None:
     if analyze:
         with st.spinner("Qwen is comparing both images locally…"):
             try:
-                assessment = qwen_analyzer().analyze(before_image, after_image)
+                assessment = qwen_analyzer(temperature, int(max_tokens)).analyze(
+                    before_image, after_image
+                )
                 st.session_state["assessment"] = assessment
                 st.session_state["assessment_pair"] = pair.label if pair else "Uploaded images"
+                st.session_state["model_settings"] = {
+                    "temperature": temperature,
+                    "max_tokens": int(max_tokens),
+                }
                 if pair:
                     with st.spinner("Checking official alerts and area history…"):
                         st.session_state["area_research"] = AreaResearchService().research(pair)
@@ -171,6 +196,7 @@ def main() -> None:
             assessment,
             st.session_state.get("assessment_pair", ""),
             st.session_state.get("area_research"),
+            st.session_state.get("model_settings", {}),
         )
 
 
@@ -178,6 +204,7 @@ def render_assessment(
     assessment: DamageAssessment,
     pair_label: str,
     research: AreaResearch | None = None,
+    model_settings: dict | None = None,
 ) -> None:
     """Render model output as readable impact categories."""
     st.divider()
@@ -185,6 +212,11 @@ def render_assessment(
     if pair_label:
         st.caption(pair_label)
     st.write(assessment.summary)
+    if model_settings:
+        st.caption(
+            f"Qwen settings: temperature {model_settings['temperature']:.2f} · "
+            f"maximum {model_settings['max_tokens']} tokens"
+        )
 
     citizen_tab, city_tab, response_tab, sources_tab = st.tabs(
         ["Citizen impact", "City impact", "Emergency response", "Sources & history"]
