@@ -42,14 +42,11 @@ class LocalQwenAnalyzer:
                     "role": "system",
                     "content": (
                         "You are a careful visual flood-damage triage assistant. "
-                        "Compare only visible evidence in the paired images. "
-                        "Do not claim a condition is safe based on absence of evidence. "
-                        "Do not infer people, injuries, power outages, hidden drainage "
-                        "conditions, or exact repair costs from aerial images. Mark "
-                        "unobservable items as unknown/not assessable. Cost estimates "
-                        "must be broad illustrative ranges, never authoritative, and "
-                        "should be null when scale or unit costs are unknown. Return "
-                        "only valid JSON matching the requested schema."
+                        "Compare only visible evidence in the paired images. Do not claim a "
+                        "condition is safe based on absence of evidence. Do not infer people, "
+                        "injuries, power outages, hidden drainage conditions, or costs from "
+                        "aerial images. Mark unobservable items unknown or not assessable. "
+                        "Return only valid JSON matching the requested schema."
                     ),
                 },
                 {
@@ -103,24 +100,9 @@ class LocalQwenAnalyzer:
   "landscape_damage": {"status": "observed|not_observed|unknown", "evidence": "", "severity": "low|moderate|high|unknown"},
   "soil_erosion": {"status": "observed|not_observed|unknown", "evidence": "", "severity": "low|moderate|high|unknown"},
   "personal_injury": {"status": "not_assessable_from_images", "evidence": ""},
-  "estimated_cost_usd": {"low": null, "high": null, "basis": "", "assumptions": []},
-  "citizen_impact": {"housing_water_impact": "", "vehicles_visible": "", "utility_damage_visible": "", "limitations": []},
-  "city_impact": {"infrastructure_visible": "", "drainage_or_erosion_visible": "", "costs": null, "limitations": []},
-  "cost_estimates_usd": {
-    "housing_and_insurance": {"low": null, "high": null, "basis": "", "source_url": ""},
-    "vehicles": {"low": null, "high": null, "basis": "", "source_url": ""},
-    "mold_cleanup": {"low": null, "high": null, "basis": "", "source_url": ""},
-    "relocation_and_shelter": {"low": null, "high": null, "basis": "", "source_url": ""},
-    "contamination": {"low": null, "high": null, "basis": "", "source_url": ""},
-    "utility_and_energy": {"low": null, "high": null, "basis": "", "source_url": ""},
-    "roads_and_public_infrastructure": {"low": null, "high": null, "basis": "", "source_url": ""},
-    "erosion_and_landscape": {"low": null, "high": null, "basis": "", "source_url": ""},
-    "dams_and_levees": {"low": null, "high": null, "basis": "", "source_url": ""},
-    "drainage": {"low": null, "high": null, "basis": "", "source_url": ""},
-    "reinsurance": {"low": null, "high": null, "basis": "", "source_url": ""},
-    "total": {"low": null, "high": null, "basis": "", "source_url": ""}
-  },
+  "citizen_impact": {"housing_water_impact": "", "vehicles_visible": "", "utility_damage_visible": ""},
+  "city_impact": {"infrastructure_visible": "", "drainage_or_erosion_visible": ""},
   "confidence": "low|medium|high",
   "limitations": []
 }
-For citizen_impact, describe only visible housing water impact, vehicles actually visible, and utility damage visibly evidenced. Mold, insurance coverage/claims, displacement, encampments, contamination, and utility service loss require external verified sources or ground inspection; mark them unknown rather than infer. For city_impact, describe only visible public infrastructure, drainage, erosion, and landscape changes; do not infer dam/levee failure or repair prices from aerial imagery. For every cost_estimates_usd category, populate low/high only when measured quantities and a credible source with applicable local unit costs support a calculation; otherwise keep them null and say what evidence is missing. Do not double-count categories; total and estimated_cost_usd must match and remain null if category amounts are missing or overlap. Distinguish observed changes from interpretation. State when imagery resolution, date mismatch, view angle, or missing ground-level evidence makes a conclusion uncertain. Use USD. This dataset may contain aerial imagery from different dates and sensors; visual differences can reflect capture conditions rather than flood damage. Never diagnose individual injury or declare infrastructure safe."""
+For citizen_impact, describe only visible water impact to housing, vehicles actually visible, and visible utility infrastructure damage. For city_impact, describe only visible public infrastructure, drainage, erosion, and landscape changes. Do not infer service outages, contamination, structural failure, or injury. Limit limitations to at most three short bullets that are based only on image quality, resolution, view angle, occlusion, or the before/after date difference. Keep each limitation under 20 words. Distinguish visible observations from interpretation. This dataset may contain aerial imagery from different dates and sensors; visual differences can reflect capture conditions rather than flood damage. Never diagnose individual injury or declare infrastructure safe."""

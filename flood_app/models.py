@@ -52,10 +52,8 @@ class DamageAssessment:
     landscape_damage: dict[str, Any]
     soil_erosion: dict[str, Any]
     personal_injury: dict[str, Any]
-    estimated_cost_usd: dict[str, Any]
     citizen_impact: dict[str, Any]
     city_impact: dict[str, Any]
-    cost_estimates_usd: dict[str, Any]
     confidence: str
     limitations: list[str]
 
@@ -70,10 +68,8 @@ class DamageAssessment:
             landscape_damage=_as_dict(payload.get("landscape_damage")),
             soil_erosion=_as_dict(payload.get("soil_erosion")),
             personal_injury=_as_dict(payload.get("personal_injury")),
-            estimated_cost_usd=_as_dict(payload.get("estimated_cost_usd")),
             citizen_impact=_as_dict(payload.get("citizen_impact")),
             city_impact=_as_dict(payload.get("city_impact")),
-            cost_estimates_usd=_as_dict(payload.get("cost_estimates_usd")),
             confidence=str(payload.get("confidence", "low")),
             limitations=_as_list(payload.get("limitations")),
         )
