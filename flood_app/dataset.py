@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 from pathlib import Path
+from uuid import uuid4
 from urllib.parse import quote
 
 from PIL import Image
@@ -67,13 +68,14 @@ class DatasetRepository:
         )
         response = requests.get(url, timeout=(15, 180), stream=True)
         response.raise_for_status()
-        temporary = target.with_suffix(target.suffix + ".part")
+        temporary = target.with_name(f".{target.name}.{uuid4().hex}.part")
         try:
-            with temporary.open("wb") as handle:
-                for chunk in response.iter_content(chunk_size=1024 * 1024):
-                    if chunk:
-                        handle.write(chunk)
-            temporary.replace(target)
+            with response:
+                with temporary.open("wb") as handle:
+                    for chunk in response.iter_content(chunk_size=1024 * 1024):
+                        if chunk:
+                            handle.write(chunk)
+                temporary.replace(target)
         finally:
             temporary.unlink(missing_ok=True)
         return target

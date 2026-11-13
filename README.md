@@ -1,4 +1,4 @@
-# FloodLens
+# Saving Texas
 
 Streamlit app for comparing before-and-after flood imagery and producing a cautious visual triage report with a local Qwen vision-language model.
 
@@ -18,7 +18,6 @@ The dataset includes 1,204 image metadata rows with explicit `paired_image_id` l
 - Network access the first time dataset metadata/images are downloaded
 
 The app does not download the model. Set `QWEN_BASE_URL` and `QWEN_MODEL` when your local server uses different values.
-Set `FLOOD_APP_PASSWORD` to require a shared password before showing the app. This is recommended when using a public tunnel or shared network.
 
 ## Run locally
 
