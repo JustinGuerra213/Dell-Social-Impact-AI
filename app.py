@@ -73,7 +73,10 @@ def main() -> None:
         initial_sidebar_state="expanded",
     )
     st.title("🌊 Saving Texas")
-    st.caption("Before-and-after flood imagery · Local Qwen vision analysis")
+    st.caption(
+        "Compare before-and-after flood images to summarize visible damage and community impacts "
+        "with a local Qwen vision model."
+    )
     st.info(
         "Image-based triage only. Visual analysis cannot confirm structural safety, "
         "utility service, or human injury.",
