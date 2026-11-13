@@ -82,6 +82,8 @@ class DatasetRepository:
 
     @staticmethod
     def _record_from_row(row: dict[str, str]) -> ImageRecord:
+        latitude = _optional_float(row.get("latitude", ""))
+        longitude = _optional_float(row.get("longitude", ""))
         return ImageRecord(
             image_id=row.get("image_id", ""),
             image_path=row.get("image_path", ""),
@@ -94,6 +96,10 @@ class DatasetRepository:
             source_agency=row.get("source_agency", ""),
             media_type=row.get("media_type", ""),
             attribution=row.get("attribution", ""),
+            county_name=row.get("county_name", ""),
+            county_geoid=row.get("county_geoid", ""),
+            latitude=latitude,
+            longitude=longitude,
         )
 
 
@@ -102,3 +108,11 @@ def image_to_bytes(image: Image.Image, image_format: str = "JPEG") -> bytes:
     buffer = io.BytesIO()
     image.save(buffer, format=image_format, quality=90)
     return buffer.getvalue()
+
+
+def _optional_float(value: str | None) -> float | None:
+    """Parse optional numeric metadata without failing on blank values."""
+    try:
+        return float(value) if value else None
+    except (TypeError, ValueError):
+        return None

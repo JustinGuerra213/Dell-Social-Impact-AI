@@ -32,7 +32,7 @@ class LocalQwenAnalyzer:
         payload = {
             "model": self.model,
             "temperature": 0.1,
-            "max_tokens": 1200,
+            "max_tokens": 2000,
             "messages": [
                 {
                     "role": "system",
@@ -100,7 +100,23 @@ class LocalQwenAnalyzer:
   "soil_erosion": {"status": "observed|not_observed|unknown", "evidence": "", "severity": "low|moderate|high|unknown"},
   "personal_injury": {"status": "not_assessable_from_images", "evidence": ""},
   "estimated_cost_usd": {"low": null, "high": null, "basis": "", "assumptions": []},
+  "citizen_impact": {"housing_water_impact": "", "vehicles_visible": "", "utility_damage_visible": "", "limitations": []},
+  "city_impact": {"infrastructure_visible": "", "drainage_or_erosion_visible": "", "costs": null, "limitations": []},
+  "cost_estimates_usd": {
+    "housing_and_insurance": {"low": null, "high": null, "basis": "", "source_url": ""},
+    "vehicles": {"low": null, "high": null, "basis": "", "source_url": ""},
+    "mold_cleanup": {"low": null, "high": null, "basis": "", "source_url": ""},
+    "relocation_and_shelter": {"low": null, "high": null, "basis": "", "source_url": ""},
+    "contamination": {"low": null, "high": null, "basis": "", "source_url": ""},
+    "utility_and_energy": {"low": null, "high": null, "basis": "", "source_url": ""},
+    "roads_and_public_infrastructure": {"low": null, "high": null, "basis": "", "source_url": ""},
+    "erosion_and_landscape": {"low": null, "high": null, "basis": "", "source_url": ""},
+    "dams_and_levees": {"low": null, "high": null, "basis": "", "source_url": ""},
+    "drainage": {"low": null, "high": null, "basis": "", "source_url": ""},
+    "reinsurance": {"low": null, "high": null, "basis": "", "source_url": ""},
+    "total": {"low": null, "high": null, "basis": "", "source_url": ""}
+  },
   "confidence": "low|medium|high",
   "limitations": []
 }
-Distinguish observed changes from interpretation. State when imagery resolution, date mismatch, view angle, or missing ground-level evidence makes a conclusion uncertain. Use USD. This dataset may contain aerial imagery from different dates and sensors; visual differences can reflect capture conditions rather than flood damage. Never diagnose individual injury or declare infrastructure safe."""
+For citizen_impact, describe only visible housing water impact, vehicles actually visible, and utility damage visibly evidenced. Mold, insurance coverage/claims, displacement, encampments, contamination, and utility service loss require external verified sources or ground inspection; mark them unknown rather than infer. For city_impact, describe only visible public infrastructure, drainage, erosion, and landscape changes; do not infer dam/levee failure or repair prices from aerial imagery. For every cost_estimates_usd category, populate low/high only when measured quantities and a credible source with applicable local unit costs support a calculation; otherwise keep them null and say what evidence is missing. Do not double-count categories; total and estimated_cost_usd must match and remain null if category amounts are missing or overlap. Distinguish observed changes from interpretation. State when imagery resolution, date mismatch, view angle, or missing ground-level evidence makes a conclusion uncertain. Use USD. This dataset may contain aerial imagery from different dates and sensors; visual differences can reflect capture conditions rather than flood damage. Never diagnose individual injury or declare infrastructure safe."""

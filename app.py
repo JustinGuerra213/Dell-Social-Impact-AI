@@ -11,6 +11,7 @@ from PIL import Image
 from flood_app.analyzer import LocalQwenAnalyzer
 from flood_app.dataset import DatasetRepository
 from flood_app.models import DamageAssessment, ImagePair
+from flood_app.research import AreaResearch, AreaResearchService
 
 
 APP_ROOT = Path(__file__).parent
@@ -153,6 +154,11 @@ def main() -> None:
                 assessment = qwen_analyzer().analyze(before_image, after_image)
                 st.session_state["assessment"] = assessment
                 st.session_state["assessment_pair"] = pair.label if pair else "Uploaded images"
+                if pair:
+                    with st.spinner("Checking official alerts and area history…"):
+                        st.session_state["area_research"] = AreaResearchService().research(pair)
+                else:
+                    st.session_state.pop("area_research", None)
             except Exception as exc:
                 st.error(
                     "Analysis failed. Confirm that the local Qwen OpenAI-compatible "
@@ -161,16 +167,140 @@ def main() -> None:
 
     assessment = st.session_state.get("assessment")
     if assessment:
-        render_assessment(assessment, st.session_state.get("assessment_pair", ""))
+        render_assessment(
+            assessment,
+            st.session_state.get("assessment_pair", ""),
+            st.session_state.get("area_research"),
+        )
 
 
-def render_assessment(assessment: DamageAssessment, pair_label: str) -> None:
+def render_assessment(
+    assessment: DamageAssessment,
+    pair_label: str,
+    research: AreaResearch | None = None,
+) -> None:
     """Render model output as readable impact categories."""
     st.divider()
     st.header("Impact triage report")
     if pair_label:
         st.caption(pair_label)
     st.write(assessment.summary)
+
+    citizen_tab, city_tab, response_tab, sources_tab = st.tabs(
+        ["Citizen impact", "City impact", "Emergency response", "Sources & history"]
+    )
+    with citizen_tab:
+        render_impact_section(
+            "Citizen impact",
+            assessment.citizen_impact,
+            ["housing_water_impact", "vehicles_visible", "utility_damage_visible"],
+        )
+        st.markdown(
+            "Housing and vehicle repair, insurance claims, mold remediation, relocation, "
+            "contamination, and utility outage costs require verified claims, inspections, "
+            "or incident reports. Aerial imagery alone cannot establish these costs."
+        )
+        st.markdown(
+            "[FEMA NFIP redacted claims data](https://www.fema.gov/openfema-data-page/fima-nfip-redacted-claims-v2) · "
+            "[FEMA/CDC mold cleanup guide](https://www.fema.gov/sites/default/files/documents/fema_hm-cdc-homeowners-and-renters-mold-guide_english.pdf) · "
+            "[FEMA disaster assistance](https://www.disasterassistance.gov/)"
+        )
+        render_cost_categories(
+            assessment.cost_estimates_usd,
+            {
+                "housing_and_insurance": "Housing and insurance",
+                "vehicles": "Vehicles",
+                "mold_cleanup": "Mold cleanup",
+                "relocation_and_shelter": "Relocation and shelter",
+                "contamination": "Contamination response",
+                "utility_and_energy": "Household utilities",
+            },
+        )
+        if research and research.historical_disasters:
+            st.markdown("**Historical county disaster declarations**")
+            render_findings(research.historical_disasters)
+    with city_tab:
+        render_impact_section(
+            "City impact",
+            assessment.city_impact,
+            ["infrastructure_visible", "drainage_or_erosion_visible"],
+        )
+        st.markdown(
+            "The total cost is not defensible without measured quantities and current local unit "
+            "prices. Utility/energy loss, road repairs, levee or dam restructuring, drainage "
+            "work, landscape restoration, and reinsurance are kept unpriced unless a cited "
+            "source provides a location-specific amount."
+        )
+        st.markdown(
+            "[HCFCD drainage network](https://www.hcfcd.org/About/Flooding-and-Floodplains/Drainage-Network) · "
+            "[FEMA Public Assistance project data](https://www.fema.gov/openfema-data-page/public-assistance-funded-projects-details-v2)"
+        )
+        render_cost_categories(
+            assessment.cost_estimates_usd,
+            {
+                "utility_and_energy": "Utilities and energy",
+                "roads_and_public_infrastructure": "Roads and public infrastructure",
+                "erosion_and_landscape": "Erosion and landscape",
+                "dams_and_levees": "Dams and levees",
+                "drainage": "Drainage",
+                "reinsurance": "Reinsurance",
+                "total": "Final total",
+            },
+        )
+        if research and research.regional_reports:
+            render_findings(research.regional_reports)
+    with response_tab:
+        visible_hazards = [
+            ("Power infrastructure", assessment.power_grid_damage),
+            ("Roads and access", assessment.public_road_hazards),
+            ("Drainage", assessment.drainage_status),
+            ("Erosion / unstable ground", assessment.soil_erosion),
+        ]
+        shown = False
+        for label, item in visible_hazards:
+            status = str(item.get("status", "unknown")).lower()
+            if status == "observed":
+                st.warning(f"Possible image-based hazard — {label}: {item.get('evidence', 'Inspect on site.')}")
+                shown = True
+        if not shown:
+            st.caption("No specific emergency hazard was confidently identified in the image report. Absence of a visual finding does not establish safety.")
+        st.markdown(
+            "Use current official warnings and local evacuation instructions. Do not route around "
+            "floodwater using this image report; road closures and water depth change quickly. "
+            "Call 911 for an immediate life-threatening emergency."
+        )
+        if research and research.active_alerts:
+            st.markdown("**Active NWS alerts at the image coordinates**")
+            render_findings(research.active_alerts)
+        else:
+            st.info("No active NWS alerts were returned for this point at the time checked. This does not establish that conditions are safe.")
+        if research and research.historical_disasters:
+            past_fire = [item for item in research.historical_disasters if "fire" in item.title.lower()]
+            if past_fire:
+                st.markdown("**Past county fire declarations (historical context, not a current incident)**")
+                render_findings(tuple(past_fire))
+        st.markdown(
+            "**Evacuation planning:** check the linked county evacuation map; identify an "
+            "accessible shelter and an out-of-area contact; plan for mobility, medical, and "
+            "vehicle needs; monitor road closures; never drive or walk through floodwater. "
+            "Hazardous structures, chemical releases, fires, collapses, landslides, and drowning "
+            "risks are listed only when an official report or visible evidence supports them."
+        )
+        st.markdown("[Ready Harris evacuation information](https://www.readyharris.org/Stay-Safe/Evacuation) · [NWS active alerts](https://www.weather.gov/alerts) · [Report a Texas spill to TCEQ](https://www.tceq.texas.gov/response/spills)")
+    with sources_tab:
+        if research:
+            st.caption(f"Area: {research.county} · Checked: {research.checked_at}")
+            if research.errors:
+                for error in research.errors:
+                    st.warning(error)
+            if research.historical_disasters:
+                st.markdown("**FEMA county disaster history**")
+                render_findings(research.historical_disasters)
+            if research.regional_reports:
+                st.markdown("**Historical regional reports**")
+                render_findings(research.regional_reports)
+        else:
+            st.info("Area-specific external research is available for UTSA dataset pairs with location metadata.")
 
     cost = assessment.estimated_cost_usd
     low, high = cost.get("low"), cost.get("high")
@@ -215,6 +345,43 @@ def render_assessment(assessment: DamageAssessment, pair_label: str) -> None:
         mime="application/json",
     )
     st.caption("Dataset: UTSA Flood Images, CC BY-NC 4.0. Use is subject to the dataset’s non-commercial license.")
+
+
+def render_impact_section(title: str, impact: dict, keys: list[str]) -> None:
+    """Render image-based citizen or city observations from Qwen."""
+    st.markdown(f"**{title} · image evidence**")
+    for key in keys:
+        label = key.replace("_", " ").title()
+        st.markdown(f"**{label}:** {impact.get(key) or 'Not established from these images.'}")
+    limitations = impact.get("limitations", [])
+    if limitations:
+        st.caption("Limitations: " + "; ".join(map(str, limitations)))
+
+
+def render_findings(findings: tuple) -> None:
+    """Render external research with direct source links and dates."""
+    for finding in findings:
+        st.markdown(f"**[{finding.title}]({finding.url})**")
+        st.write(finding.detail)
+        suffix = " · ".join(value for value in [finding.source_name, finding.observed_at] if value)
+        if suffix:
+            st.caption(suffix)
+
+
+def render_cost_categories(costs: dict, categories: dict[str, str]) -> None:
+    """Show sourced cost ranges while keeping unknown amounts explicit."""
+    st.markdown("**Cost assessment · USD**")
+    rows = []
+    for key, label in categories.items():
+        item = costs.get(key, {})
+        low, high = item.get("low"), item.get("high")
+        if isinstance(low, (int, float)) and isinstance(high, (int, float)):
+            amount = f"${low:,.0f}–${high:,.0f}"
+        else:
+            amount = "Not established"
+        basis = item.get("basis", "")
+        rows.append({"Category": label, "Range": amount, "Basis": basis})
+    st.dataframe(rows, hide_index=True, use_container_width=True)
 
 
 if __name__ == "__main__":
