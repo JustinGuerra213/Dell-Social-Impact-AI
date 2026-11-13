@@ -221,8 +221,8 @@ def render_assessment(
             f"maximum {model_settings['max_tokens']} tokens"
         )
 
-    impact_tab, observed_tab, limitations_tab = st.tabs(
-        ["Impact", "Observed changes", "Limitations"]
+    impact_tab, observed_tab, limitations_tab, weather_tab = st.tabs(
+        ["Impact", "Observed changes", "Limitations", "Weather distribution"]
     )
     with impact_tab:
         st.markdown("#### Citizen impact")
@@ -235,10 +235,6 @@ def render_assessment(
             assessment.city_impact,
             ["infrastructure_visible", "drainage_or_erosion_visible"],
         )
-        if weather_context:
-            with st.container(border=True):
-                coordinates, acquisition_date, locality = weather_context
-                render_weather_explorer(coordinates, acquisition_date, locality)
     with observed_tab:
         categories = [
             ("Power grid", assessment.power_grid_damage),
@@ -267,6 +263,13 @@ def render_assessment(
                     "Image resolution, view angle, and occlusion may hide damage. "
                     "The photos cannot verify conditions inside structures or below floodwater."
                 )
+    with weather_tab:
+        if weather_context:
+            with st.container(border=True):
+                coordinates, acquisition_date, locality = weather_context
+                render_weather_explorer(coordinates, acquisition_date, locality)
+        else:
+            st.info("Weather data is unavailable for this report.")
     st.download_button(
         "Download report as JSON",
         data=json.dumps(assessment.__dict__, indent=2),
