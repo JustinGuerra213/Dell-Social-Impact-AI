@@ -18,6 +18,7 @@ from flood_app.models import DamageAssessment, ImagePair
 
 APP_ROOT = Path(__file__).parent
 DATA_CACHE = Path(os.getenv("FLOOD_DATA_CACHE", APP_ROOT / "data" / "hf-cache"))
+ASSESSMENT_PROMPT_VERSION = "expanded-report-v2"
 
 
 @st.cache_resource(show_spinner="Connecting to the local UTSA image metadata…")
@@ -178,7 +179,7 @@ def main() -> None:
                     "temperature": temperature,
                     "max_tokens": int(max_tokens),
                 }
-                st.session_state["assessment_prompt_version"] = LocalQwenAnalyzer.PROMPT_VERSION
+                st.session_state["assessment_prompt_version"] = ASSESSMENT_PROMPT_VERSION
             except Exception as exc:
                 st.error(
                     "Analysis failed. Confirm that the local Qwen OpenAI-compatible "
@@ -188,7 +189,7 @@ def main() -> None:
     assessment = st.session_state.get("assessment")
     if (
         assessment
-        and st.session_state.get("assessment_prompt_version") != LocalQwenAnalyzer.PROMPT_VERSION
+        and st.session_state.get("assessment_prompt_version") != ASSESSMENT_PROMPT_VERSION
     ):
         st.info("The report was generated with an earlier prompt. Select “Analyze changes” to create the expanded report.")
         assessment = None

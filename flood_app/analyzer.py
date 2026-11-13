@@ -15,8 +15,6 @@ from flood_app.models import DamageAssessment
 class LocalQwenAnalyzer:
     """Send paired images to an OpenAI-compatible local Qwen endpoint."""
 
-    PROMPT_VERSION = 2
-
     def __init__(
         self,
         base_url: str,
