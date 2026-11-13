@@ -166,13 +166,6 @@ def main() -> None:
         if details:
             st.caption(f"Dataset context: {details}")
 
-        st.divider()
-        render_weather_explorer(
-            (pair.after.latitude, pair.after.longitude),
-            pair.after.acquisition_date or pair.before.acquisition_date,
-            pair.after.locality or pair.before.locality,
-        )
-
     if analyze:
         with st.spinner("Qwen is comparing both images locally…"):
             try:
@@ -197,6 +190,15 @@ def main() -> None:
             assessment,
             st.session_state.get("assessment_pair", ""),
             st.session_state.get("model_settings", {}),
+            weather_context=(
+                (
+                    (pair.after.latitude, pair.after.longitude),
+                    pair.after.acquisition_date or pair.before.acquisition_date,
+                    pair.after.locality or pair.before.locality,
+                )
+                if pair
+                else None
+            ),
         )
 
 
@@ -204,6 +206,7 @@ def render_assessment(
     assessment: DamageAssessment,
     pair_label: str,
     model_settings: dict | None = None,
+    weather_context: tuple[tuple[float | None, float | None], str, str] | None = None,
 ) -> None:
     """Render the requested impact, observation, and limitation tabs."""
     st.divider()
@@ -232,6 +235,10 @@ def render_assessment(
             assessment.city_impact,
             ["infrastructure_visible", "drainage_or_erosion_visible"],
         )
+        if weather_context:
+            with st.container(border=True):
+                coordinates, acquisition_date, locality = weather_context
+                render_weather_explorer(coordinates, acquisition_date, locality)
     with observed_tab:
         categories = [
             ("Power grid", assessment.power_grid_damage),
