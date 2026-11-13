@@ -29,7 +29,12 @@ class LocalQwenAnalyzer:
         self.max_tokens = max_tokens
         self.timeout_seconds = timeout_seconds
 
-    def analyze(self, before: Image.Image, after: Image.Image) -> DamageAssessment:
+    def analyze(
+        self,
+        before: Image.Image,
+        after: Image.Image,
+        weather_context: dict | None = None,
+    ) -> DamageAssessment:
         """Compare two images and return structured, cautious findings."""
         before_data = self._data_url(before)
         after_data = self._data_url(after)
@@ -54,7 +59,7 @@ class LocalQwenAnalyzer:
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": self._prompt()},
+                        {"type": "text", "text": self._prompt(weather_context)},
                         {"type": "text", "text": "BEFORE image:"},
                         {"type": "image_url", "image_url": {"url": before_data}},
                         {"type": "text", "text": "AFTER / RESPONSE image:"},
@@ -92,8 +97,8 @@ class LocalQwenAnalyzer:
         return payload
 
     @staticmethod
-    def _prompt() -> str:
-        return """Return JSON with this shape:
+    def _prompt(weather_context: dict | None = None) -> str:
+        prompt = """Return JSON with this shape:
 {
   "summary": "2-3 sentence overview of the clearest visible changes and how confidently the pair can be compared",
   "power_grid_damage": {"status": "observed|not_observed|unknown", "evidence": "", "severity": "low|moderate|high|unknown"},
@@ -104,6 +109,11 @@ class LocalQwenAnalyzer:
   "personal_injury": {"status": "not_assessable_from_images", "evidence": ""},
   "citizen_impact": {"housing_water_impact": "", "vehicles_visible": "", "utility_damage_visible": ""},
   "city_impact": {"infrastructure_visible": "", "drainage_or_erosion_visible": ""},
+  "metrics": {
+    "flood_area_percent_low": null, "flood_area_percent_high": null, "flood_area_basis": "",
+    "road_affected_percent_low": null, "road_affected_percent_high": null, "road_affected_basis": "",
+    "confidence_rationale": ""
+  },
   "confidence": "low|medium|high",
   "limitations": []
 }
@@ -113,4 +123,18 @@ For citizen_impact, describe only visible water exposure to homes, vehicles actu
 
 Use status=observed only for clear visual evidence. Use not_observed only when the relevant area is visible enough to make that limited statement; it does not mean safe or undamaged. Use unknown when imagery is insufficient. Severity describes visible extent only: low is small/localized, moderate is clearly affecting multiple features or a larger area, high is extensive visible impact; otherwise use unknown. Do not assign severity based on hypothetical danger.
 
+For metrics, estimate flood_area_percent_low/high as a broad, rounded range for the share of the visible image footprint with clear water or direct visible flood impact. This is not an estimate of the total geographic area. Estimate road_affected_percent_low/high only as the share of road segments actually visible in the images that appear inundated, obstructed, or visibly damaged; it is not the share of all roads in the area. Use null for both bounds and explain why in the matching basis field when the scene, road coverage, resolution, angle, or occlusion does not support a defensible estimate. Do not turn uncertain visual impressions into precise measurements. Confidence must reflect image clarity, scene alignment, coverage, and date difference; explain it briefly in confidence_rationale. Weather readings, when separately available in the app, are contextual and must not be treated as proof of flood extent or road damage.
+
 Limit limitations to at most four short, image-specific items, each one or two sentences. Explain how resolution, image angle, occlusion, incomplete scene coverage, different sensors, or the before/response date gap affects what can be concluded. Keep limitations grounded in the images and do not introduce outside reports or sources. This dataset may contain aerial imagery from different dates and sensors; visual differences can reflect capture conditions rather than flood damage. Never diagnose individual injury or declare infrastructure safe."""
+        if weather_context:
+            prompt += (
+                "\n\nOptional historical weather context follows as daily gridded reanalysis estimates. "
+                "Use its temperature and rainfall distribution only as supporting temporal context; "
+                "do not treat rainfall as proof of flooding, use it to calculate image-area or road "
+                "percentages, or increase confidence without clear image evidence. If relevant, mention "
+                "the weather period and values explicitly.\n"
+                + json.dumps(weather_context, ensure_ascii=True, separators=(",", ":"))
+            )
+        else:
+            prompt += "\n\nNo weather data was supplied. Base this assessment only on the before and response images."
+        return prompt

@@ -54,6 +54,7 @@ class DamageAssessment:
     personal_injury: dict[str, Any]
     citizen_impact: dict[str, Any]
     city_impact: dict[str, Any]
+    metrics: dict[str, Any]
     confidence: str
     limitations: list[str]
 
@@ -70,6 +71,7 @@ class DamageAssessment:
             personal_injury=_as_dict(payload.get("personal_injury")),
             citizen_impact=_as_dict(payload.get("citizen_impact")),
             city_impact=_as_dict(payload.get("city_impact")),
+            metrics=_as_dict(payload.get("metrics")),
             confidence=str(payload.get("confidence", "low")),
             limitations=_as_list(payload.get("limitations")),
         )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 from pathlib import Path
@@ -14,11 +15,12 @@ from PIL import Image
 from flood_app.analyzer import LocalQwenAnalyzer
 from flood_app.dataset import DatasetRepository, filter_pairs_by_locality
 from flood_app.models import DamageAssessment, ImagePair
+from flood_app.weather import HistoricalWeatherProvider
 
 
 APP_ROOT = Path(__file__).parent
 DATA_CACHE = Path(os.getenv("FLOOD_DATA_CACHE", APP_ROOT / "data" / "hf-cache"))
-ASSESSMENT_PROMPT_VERSION = "expanded-report-v2"
+ASSESSMENT_PROMPT_VERSION = "metrics-report-v3"
 
 
 @st.cache_resource(show_spinner="Connecting to the local UTSA image metadata…")
@@ -42,6 +44,16 @@ def qwen_analyzer(temperature: float, max_tokens: int) -> LocalQwenAnalyzer:
         temperature=temperature,
         max_tokens=max_tokens,
     )
+
+
+@st.cache_data(ttl=21600, show_spinner=False)
+def historical_weather_context(
+    latitude: float | None,
+    longitude: float | None,
+    image_date: str,
+) -> dict | None:
+    """Cache daily weather context for the selected image-date window."""
+    return HistoricalWeatherProvider().get_context(latitude, longitude, image_date)
 
 
 @st.cache_data(show_spinner="Loading selected dataset images…")
@@ -168,11 +180,39 @@ def main() -> None:
             st.caption(f"Dataset context: {details}")
 
     if analyze:
-        with st.spinner("Qwen is comparing both images locally…"):
+        with st.spinner("Loading optional weather context and comparing both images with local Qwen…"):
             try:
+                weather_observations = None
+                if pair:
+                    try:
+                        latitude, longitude = pair_coordinates(pair)
+                        weather_observations = historical_weather_context(
+                            latitude,
+                            longitude,
+                            pair.after.acquisition_date or pair.before.acquisition_date,
+                        )
+                    except Exception:
+                        # Weather is optional; the model still analyzes both images alone.
+                        weather_observations = None
                 assessment = qwen_analyzer(temperature, int(max_tokens)).analyze(
-                    before_image, after_image
+                    before_image,
+                    after_image,
+                    weather_context=weather_observations,
                 )
+                if weather_observations:
+                    assessment.metrics["weather_context"] = {
+                        key: weather_observations[key]
+                        for key in (
+                            "source",
+                            "start_date",
+                            "end_date",
+                            "mean_temperature_c",
+                            "total_rain_mm",
+                            "rainy_days",
+                            "maximum_daily_rain_mm",
+                        )
+                    }
+                st.session_state["weather_context_included"] = bool(weather_observations)
                 st.session_state["assessment"] = assessment
                 st.session_state["assessment_pair"] = pair.label if pair else "Uploaded images"
                 st.session_state["model_settings"] = {
@@ -200,13 +240,14 @@ def main() -> None:
             st.session_state.get("model_settings", {}),
             weather_context=(
                 (
-                    (pair.after.latitude, pair.after.longitude),
+                    pair_coordinates(pair),
                     pair.after.acquisition_date or pair.before.acquisition_date,
                     pair.after.locality or pair.before.locality,
                 )
                 if pair
                 else None
             ),
+            weather_context_included=st.session_state.get("weather_context_included", False),
         )
 
 
@@ -215,6 +256,7 @@ def render_assessment(
     pair_label: str,
     model_settings: dict | None = None,
     weather_context: tuple[tuple[float | None, float | None], str, str] | None = None,
+    weather_context_included: bool = False,
 ) -> None:
     """Render the requested impact, observation, and limitation tabs."""
     st.divider()
@@ -229,8 +271,8 @@ def render_assessment(
             f"maximum {model_settings['max_tokens']} tokens"
         )
 
-    impact_tab, observed_tab, limitations_tab, weather_tab, area_map_tab = st.tabs(
-        ["Impact", "Observed changes", "Limitations", "Weather distribution", "Area map"]
+    impact_tab, observed_tab, limitations_tab, metrics_tab, area_map_tab = st.tabs(
+        ["Impact", "Observed changes", "Limitations", "Metrics", "Area map"]
     )
     with impact_tab:
         st.caption(
@@ -298,13 +340,26 @@ def render_assessment(
                     "The pair shows only two capture times, so it cannot establish exactly when a visible change occurred or prove what caused it. "
                     "Aerial views may hide damage beneath water, vegetation, shadows, or structures; interior conditions and utility service status are not visible."
                 )
-    with weather_tab:
+    with metrics_tab:
+        render_impact_metrics(assessment)
+        st.divider()
+        st.markdown("#### Temperature and rainfall context")
+        if weather_context_included:
+            st.caption(
+                "Historical temperature and rainfall data for the image-date window was supplied to Qwen as context. "
+                "The area and road percentages remain visual estimates from the images, not weather-derived measurements."
+            )
+        else:
+            st.caption(
+                "No historical weather data was supplied during this analysis. Metrics use only the before and response images. "
+                "The chart below may still load weather data for reference, but it did not affect this prediction."
+            )
         if weather_context:
             with st.container(border=True):
                 coordinates, acquisition_date, locality = weather_context
                 render_weather_explorer(coordinates, acquisition_date, locality)
         else:
-            st.info("Weather data is unavailable for this report.")
+            st.info("No weather data is available for this pair; the image-based metrics use only the before and response images.")
     with area_map_tab:
         if weather_context:
             coordinates, _, locality = weather_context
@@ -320,6 +375,14 @@ def render_assessment(
     st.caption("Dataset: UTSA Flood Images, CC BY-NC 4.0.")
 
 
+def pair_coordinates(pair: ImagePair) -> tuple[float | None, float | None]:
+    """Use response coordinates, falling back to before-image coordinates."""
+    after_coordinates = (pair.after.latitude, pair.after.longitude)
+    if None not in after_coordinates:
+        return after_coordinates
+    return pair.before.latitude, pair.before.longitude
+
+
 def render_impact_section(impact: dict, fields: list[tuple[str, str]]) -> None:
     """Render image-based citizen or city observations from Qwen."""
     for key, label in fields:
@@ -329,6 +392,61 @@ def render_impact_section(impact: dict, fields: list[tuple[str, str]]) -> None:
                 impact.get(key)
                 or "Not established from these images; this pair does not show enough clear evidence to describe this impact."
             )
+
+
+def render_impact_metrics(assessment: DamageAssessment) -> None:
+    """Render bounded visual estimates and the model's confidence rationale."""
+    metrics = assessment.metrics
+    flood_range = _format_percent_range(
+        metrics.get("flood_area_percent_low"), metrics.get("flood_area_percent_high")
+    )
+    road_range = _format_percent_range(
+        metrics.get("road_affected_percent_low"), metrics.get("road_affected_percent_high")
+    )
+    confidence = assessment.confidence.strip().title()
+    if confidence.lower() not in {"low", "medium", "high"}:
+        confidence = "Unavailable"
+
+    st.caption(
+        "Percentages refer only to the visible image footprint and visible road segments. "
+        "They are approximate visual estimates, not surveyed measurements or totals for the surrounding area."
+    )
+    area_column, roads_column, confidence_column = st.columns(3)
+    area_column.metric("Visible flood-affected scene", flood_range or "Not estimable")
+    roads_column.metric("Visible roads affected", road_range or "Not estimable")
+    confidence_column.metric("Prediction confidence", confidence)
+
+    with st.container(border=True):
+        st.markdown("**Evidence and estimate basis**")
+        st.write(
+            "**Visible scene:** "
+            + str(metrics.get("flood_area_basis") or "The model did not provide a defensible area estimate.")
+        )
+        st.write(
+            "**Visible roads:** "
+            + str(metrics.get("road_affected_basis") or "The model did not provide a defensible road estimate.")
+        )
+        st.write(
+            "**Confidence:** "
+            + str(
+                metrics.get("confidence_rationale")
+                or "No confidence explanation was returned; review the image-specific limitations and observed evidence."
+            )
+        )
+
+
+def _format_percent_range(low: object, high: object) -> str | None:
+    """Format a valid 0–100 percent interval from model output."""
+    try:
+        low_value = float(low)
+        high_value = float(high)
+    except (TypeError, ValueError):
+        return None
+    if not (math.isfinite(low_value) and math.isfinite(high_value)):
+        return None
+    if not (0 <= low_value <= high_value <= 100):
+        return None
+    return f"{low_value:g}–{high_value:g}%"
 
 
 def render_weather_explorer(
