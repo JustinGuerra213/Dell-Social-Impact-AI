@@ -46,42 +46,42 @@ The diagram shows logical traffic paths. The Qwen and Streamlit processes run on
 
 ```mermaid
 sequenceDiagram
-    actor Visitor
+    participant Visitor
     participant Browser
-    participant Pinggy as Pinggy HTTPS edge
-    participant SSH as GB10 SSH client
-    participant Streamlit as Streamlit app :8501
-    participant HF as Hugging Face dataset
-    participant Weather as Open-Meteo API
-    participant Qwen as Local Qwen API :8000
-    participant CDN as Leaflet CDN
-    participant OSM as OpenStreetMap tiles
+    participant Pinggy
+    participant SSH
+    participant App
+    participant Dataset
+    participant Weather
+    participant Qwen
+    participant CDN
+    participant OSM
 
-    Visitor->>Browser: Open current public app URL
-    Browser->>Pinggy: HTTPS request / Streamlit WebSocket
-    Pinggy->>SSH: Route request through existing reverse SSH tunnel
-    SSH->>Streamlit: Forward to localhost:8501
+    Visitor->>Browser: Open public app URL
+    Browser->>Pinggy: HTTPS page and WebSocket request
+    Pinggy->>SSH: Forward through existing reverse SSH tunnel
+    SSH->>App: Deliver to localhost port 8501
     Visitor->>Browser: Select city and image pair
-    Browser->>Pinggy: Send UI event over existing HTTPS/WebSocket connection
-    Pinggy->>SSH: Forward event through existing reverse tunnel
-    SSH->>Streamlit: Deliver event to port 8501
-    Streamlit->>HF: Fetch metadata; fetch selected images if uncached
-    HF-->>Streamlit: CSV metadata and image files
+    Browser->>Pinggy: Send selection event
+    Pinggy->>SSH: Forward event through tunnel
+    SSH->>App: Deliver Streamlit event
+    App->>Dataset: Load metadata and uncached images
+    Dataset-->>App: Pair records and image bytes
     Visitor->>Browser: Click Analyze changes
-    Browser->>Pinggy: Send analysis action over WebSocket
-    Pinggy->>SSH: Forward action through existing reverse tunnel
-    SSH->>Streamlit: Deliver action to port 8501
-    Streamlit->>Weather: Request daily temperature and rain for the image-date window
-    Weather-->>Streamlit: Weather context, or unavailable
-    Streamlit->>Qwen: Send before/response images, analysis prompt, optional weather
-    Qwen-->>Streamlit: JSON findings, impact ranges, confidence and limitations
-    Streamlit-->>SSH: Return rendered report
-    SSH-->>Pinggy: Return over reverse tunnel
+    Browser->>Pinggy: Send analysis action
+    Pinggy->>SSH: Forward action through tunnel
+    SSH->>App: Deliver action
+    App->>Weather: Request daily values when coordinates and date exist
+    Weather-->>App: Weather context or unavailable
+    App->>Qwen: Send images, prompt, and optional weather context
+    Qwen-->>App: Structured JSON assessment
+    App-->>SSH: Return rendered report
+    SSH-->>Pinggy: Return through reverse tunnel
     Pinggy-->>Browser: Deliver report over HTTPS
-    Browser->>Weather: Fetch chart series from weather iframe
-    Browser->>Pinggy: Request map iframe document
-    Browser->>CDN: Load Leaflet CSS and JavaScript
-    Browser->>OSM: Fetch tiles for the visible map area
+    Browser->>Weather: Fetch chart series from weather component
+    Browser->>Pinggy: Request map component
+    Browser->>CDN: Load Leaflet JavaScript and CSS
+    Browser->>OSM: Fetch visible map tiles
 ```
 
 The in-browser weather chart makes its own request to Open-Meteo. Separately, the Streamlit server requests the same date window so Qwen can receive weather as optional context. The server response is cached for six hours; the chart request is made from the browser.
