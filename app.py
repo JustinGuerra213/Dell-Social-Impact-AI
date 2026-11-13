@@ -97,7 +97,7 @@ def main() -> None:
             "Maximum response tokens",
             min_value=256,
             max_value=4096,
-            value=2000,
+            value=3072,
             step=256,
             help="Limits response length. Larger values can take longer.",
         )
@@ -178,6 +178,7 @@ def main() -> None:
                     "temperature": temperature,
                     "max_tokens": int(max_tokens),
                 }
+                st.session_state["assessment_prompt_version"] = LocalQwenAnalyzer.PROMPT_VERSION
             except Exception as exc:
                 st.error(
                     "Analysis failed. Confirm that the local Qwen OpenAI-compatible "
@@ -185,6 +186,12 @@ def main() -> None:
                 )
 
     assessment = st.session_state.get("assessment")
+    if (
+        assessment
+        and st.session_state.get("assessment_prompt_version") != LocalQwenAnalyzer.PROMPT_VERSION
+    ):
+        st.info("The report was generated with an earlier prompt. Select “Analyze changes” to create the expanded report.")
+        assessment = None
     if assessment:
         render_assessment(
             assessment,
@@ -225,17 +232,32 @@ def render_assessment(
         ["Impact", "Observed changes", "Limitations", "Weather distribution", "Area map"]
     )
     with impact_tab:
+        st.caption(
+            "Impact statements describe possible effects supported by visible evidence in this image pair. "
+            "They do not confirm injuries, service outages, or damage hidden from view."
+        )
         st.markdown("#### Citizen impact")
         render_impact_section(
             assessment.citizen_impact,
-            ["housing_water_impact", "vehicles_visible", "utility_damage_visible"],
+            [
+                ("housing_water_impact", "Water exposure to homes"),
+                ("vehicles_visible", "Vehicles in the image"),
+                ("utility_damage_visible", "Visible utility infrastructure"),
+            ],
         )
         st.markdown("#### City impact")
         render_impact_section(
             assessment.city_impact,
-            ["infrastructure_visible", "drainage_or_erosion_visible"],
+            [
+                ("infrastructure_visible", "Public infrastructure"),
+                ("drainage_or_erosion_visible", "Drainage, erosion, and landscape"),
+            ],
         )
     with observed_tab:
+        st.caption(
+            "Each finding compares visible features across the before and response images. "
+            "“Not observed” means no clear evidence appears in the visible area; it does not mean the area is safe."
+        )
         categories = [
             ("Power grid", assessment.power_grid_damage),
             ("Public roads", assessment.public_road_hazards),
@@ -246,13 +268,25 @@ def render_assessment(
         ]
         for title, finding in categories:
             with st.container(border=True):
-                status = str(finding.get("status", "unknown")).replace("_", " ").title()
+                raw_status = str(finding.get("status", "unknown")).lower()
+                status = {
+                    "observed": "Visible evidence",
+                    "not_observed": "No clear evidence in view",
+                    "unknown": "Cannot determine from these images",
+                    "not_assessable_from_images": "Not assessable from images",
+                }.get(raw_status, raw_status.replace("_", " ").title())
                 st.markdown(f"**{title} · {status}**")
                 if finding.get("severity"):
-                    st.caption(f"Severity: {finding['severity']}")
-                st.write(finding.get("evidence", "Not established from these images."))
+                    st.caption(f"Visible extent: {finding['severity']}")
+                st.write(
+                    finding.get("evidence")
+                    or "The images do not provide enough clear visual evidence to describe this condition."
+                )
     with limitations_tab:
-        limitations = [item[:180] for item in assessment.limitations[:3]]
+        st.caption(
+            "These image-specific limits affect confidence in the visual comparison. They describe what this pair cannot establish."
+        )
+        limitations = assessment.limitations[:4]
         if limitations:
             for limitation in limitations:
                 with st.container(border=True):
@@ -260,8 +294,8 @@ def render_assessment(
         else:
             with st.container(border=True):
                 st.write(
-                    "Image resolution, view angle, and occlusion may hide damage. "
-                    "The photos cannot verify conditions inside structures or below floodwater."
+                    "The pair shows only two capture times, so it cannot establish exactly when a visible change occurred or prove what caused it. "
+                    "Aerial views may hide damage beneath water, vegetation, shadows, or structures; interior conditions and utility service status are not visible."
                 )
     with weather_tab:
         if weather_context:
@@ -285,13 +319,15 @@ def render_assessment(
     st.caption("Dataset: UTSA Flood Images, CC BY-NC 4.0.")
 
 
-def render_impact_section(impact: dict, keys: list[str]) -> None:
+def render_impact_section(impact: dict, fields: list[tuple[str, str]]) -> None:
     """Render image-based citizen or city observations from Qwen."""
-    for key in keys:
-        label = key.replace("_", " ").title()
+    for key, label in fields:
         with st.container(border=True):
             st.markdown(f"**{label}**")
-            st.write(impact.get(key) or "Not established from these images.")
+            st.write(
+                impact.get(key)
+                or "Not established from these images; this pair does not show enough clear evidence to describe this impact."
+            )
 
 
 def render_weather_explorer(

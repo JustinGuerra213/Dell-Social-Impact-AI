@@ -15,12 +15,14 @@ from flood_app.models import DamageAssessment
 class LocalQwenAnalyzer:
     """Send paired images to an OpenAI-compatible local Qwen endpoint."""
 
+    PROMPT_VERSION = 2
+
     def __init__(
         self,
         base_url: str,
         model: str,
         temperature: float = 0.1,
-        max_tokens: int = 2000,
+        max_tokens: int = 3072,
         timeout_seconds: int = 240,
     ) -> None:
         self.base_url = base_url.rstrip("/")
@@ -41,12 +43,14 @@ class LocalQwenAnalyzer:
                 {
                     "role": "system",
                     "content": (
-                        "You are a careful visual flood-damage triage assistant. "
-                        "Compare only visible evidence in the paired images. Do not claim a "
-                        "condition is safe based on absence of evidence. Do not infer people, "
-                        "injuries, power outages, hidden drainage conditions, or costs from "
-                        "aerial images. Mark unobservable items unknown or not assessable. "
-                        "Return only valid JSON matching the requested schema."
+                        "You are a careful visual flood-damage triage assistant. Compare only "
+                        "visible evidence in the paired images and describe it precisely. Do not "
+                        "claim a condition is safe based on absence of evidence. Do not infer "
+                        "people, injuries, power outages, hidden drainage conditions, or costs "
+                        "from aerial images. Mark unobservable items unknown or not assessable. "
+                        "Never treat a visual difference as flood-caused unless the images "
+                        "directly support that conclusion. Return only valid JSON matching the "
+                        "requested schema."
                     ),
                 },
                 {
@@ -93,7 +97,7 @@ class LocalQwenAnalyzer:
     def _prompt() -> str:
         return """Return JSON with this shape:
 {
-  "summary": "short comparison",
+  "summary": "2-3 sentence overview of the clearest visible changes and how confidently the pair can be compared",
   "power_grid_damage": {"status": "observed|not_observed|unknown", "evidence": "", "severity": "low|moderate|high|unknown"},
   "public_road_hazards": {"status": "observed|not_observed|unknown", "evidence": "", "severity": "low|moderate|high|unknown"},
   "drainage_status": {"status": "observed|not_observed|unknown", "evidence": "", "severity": "low|moderate|high|unknown"},
@@ -105,4 +109,10 @@ class LocalQwenAnalyzer:
   "confidence": "low|medium|high",
   "limitations": []
 }
-For citizen_impact, describe only visible water impact to housing, vehicles actually visible, and visible utility infrastructure damage. For city_impact, describe only visible public infrastructure, drainage, erosion, and landscape changes. Do not infer service outages, contamination, structural failure, or injury. Limit limitations to at most three short bullets that are based only on image quality, resolution, view angle, occlusion, or the before/after date difference. Keep each limitation under 20 words. Distinguish visible observations from interpretation. This dataset may contain aerial imagery from different dates and sensors; visual differences can reflect capture conditions rather than flood damage. Never diagnose individual injury or declare infrastructure safe."""
+Write in clear language for a non-specialist. Be specific, comparative, and evidence-led; do not pad the answer or repeat generic warnings. For each impact field and each observed-category evidence field, write 2-3 concise sentences when the images support that detail. Identify the image (before or response), the visible feature and its approximate location or extent, and the change between images. Separate direct observation from a cautious possible implication. If a feature is not visible or the pair cannot support a conclusion, say so briefly instead of guessing.
+
+For citizen_impact, describe only visible water exposure to homes, vehicles actually visible, and utility infrastructure physically shown. For city_impact, describe only visible public infrastructure, drainage, erosion, and landscape changes. Do not infer service outages, contamination, structural failure, costs, or injury.
+
+Use status=observed only for clear visual evidence. Use not_observed only when the relevant area is visible enough to make that limited statement; it does not mean safe or undamaged. Use unknown when imagery is insufficient. Severity describes visible extent only: low is small/localized, moderate is clearly affecting multiple features or a larger area, high is extensive visible impact; otherwise use unknown. Do not assign severity based on hypothetical danger.
+
+Limit limitations to at most four short, image-specific items, each one or two sentences. Explain how resolution, image angle, occlusion, incomplete scene coverage, different sensors, or the before/response date gap affects what can be concluded. Keep limitations grounded in the images and do not introduce outside reports or sources. This dataset may contain aerial imagery from different dates and sensors; visual differences can reflect capture conditions rather than flood damage. Never diagnose individual injury or declare infrastructure safe."""

@@ -81,6 +81,14 @@ class DatasetRepositoryTests(unittest.TestCase):
 class LocalQwenAnalyzerTests(unittest.TestCase):
     """Verify tolerant parsing of the local model's JSON output."""
 
+    def test_prompt_requests_comparative_detail_and_specific_limitations(self) -> None:
+        prompt = LocalQwenAnalyzer._prompt()
+
+        self.assertIn("2-3 concise sentences", prompt)
+        self.assertIn("visible feature and its approximate location or extent", prompt)
+        self.assertIn("Limit limitations to at most four short, image-specific items", prompt)
+        self.assertIn("Use not_observed only when the relevant area is visible enough", prompt)
+
     def test_parse_json_accepts_markdown_fence(self) -> None:
         payload = LocalQwenAnalyzer._parse_json('```json\n{"summary":"change"}\n```')
         self.assertEqual(payload, {"summary": "change"})
