@@ -81,7 +81,7 @@ class HistoricalWeatherProvider:
             return None
 
         return {
-            "source": "Open-Meteo Historical Weather API (ERA5 gridded reanalysis)",
+            "source": "Open-Meteo Historical Weather API (default Best Match gridded reanalysis)",
             "latitude": _finite_number(payload.get("latitude")),
             "longitude": _finite_number(payload.get("longitude")),
             "start_date": start_date.isoformat(),

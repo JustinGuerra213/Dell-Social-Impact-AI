@@ -49,7 +49,7 @@
     </section>
     <section class="chartbox"><p class="charttitle" id="series-title">Daily mean temperature</p><canvas id="series" aria-label="Daily weather observations over time"></canvas></section>
     <section class="chartbox"><p class="charttitle">Value distribution across the selected period</p><canvas id="distribution" aria-label="Histogram of daily weather values"></canvas></section>
-    <p class="foot">Historical, gridded reanalysis estimates from <a href="https://open-meteo.com/en/docs/historical-weather-api" target="_blank" rel="noopener">Open-Meteo</a> (ERA5). These are regional estimates, not measurements from a local gauge or weather station. Rainfall is daily rain accumulation in millimeters; temperature is daily mean at 2 m in °C.</p>
+    <p class="foot">Historical, gridded reanalysis estimates from the <a href="https://open-meteo.com/en/docs/historical-weather-api" target="_blank" rel="noopener">Open-Meteo Historical Weather API</a> using its default Best Match dataset. Best Match combines available IFS, ERA5, and ERA5-Land data, so the underlying model and grid resolution can vary by date and location. These are regional estimates, not measurements from a local gauge or weather station. Rainfall is daily rain accumulation in millimeters; temperature is daily mean at 2 m in °C.</p>
   </main>
   <script>
     const latitude = __LATITUDE__;
