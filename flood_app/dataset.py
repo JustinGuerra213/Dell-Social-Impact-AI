@@ -110,6 +110,15 @@ def image_to_bytes(image: Image.Image, image_format: str = "JPEG") -> bytes:
     return buffer.getvalue()
 
 
+def filter_pairs_by_locality(
+    pairs: list[ImagePair], locality: str | None
+) -> list[ImagePair]:
+    """Filter dataset pairs by their recorded locality label."""
+    if not locality:
+        return pairs
+    return [pair for pair in pairs if pair.before.locality == locality]
+
+
 def _optional_float(value: str | None) -> float | None:
     """Parse optional numeric metadata without failing on blank values."""
     try:

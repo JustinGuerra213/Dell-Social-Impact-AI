@@ -9,7 +9,7 @@ import streamlit as st
 from PIL import Image
 
 from flood_app.analyzer import LocalQwenAnalyzer
-from flood_app.dataset import DatasetRepository
+from flood_app.dataset import DatasetRepository, filter_pairs_by_locality
 from flood_app.models import DamageAssessment, ImagePair
 from flood_app.research import AreaResearch, AreaResearchService
 
@@ -113,7 +113,23 @@ def main() -> None:
                 if not pairs:
                     st.error("No linked before/response pairs were found in the dataset metadata.")
                 else:
-                    pair = st.selectbox("Location / event", pairs, format_func=lambda item: item.label)
+                    localities = sorted(
+                        {item.before.locality for item in pairs if item.before.locality}
+                    )
+                    city_area = st.selectbox(
+                        "City / area",
+                        ["All cities and areas", *localities],
+                        help="Uses the dataset's locality labels; some are neighborhoods, rivers, or regions rather than incorporated cities.",
+                    )
+                    filtered_pairs = filter_pairs_by_locality(
+                        pairs,
+                        None if city_area == "All cities and areas" else city_area,
+                    )
+                    pair = st.selectbox(
+                        "Location / event",
+                        filtered_pairs,
+                        format_func=lambda item: item.label,
+                    )
                     before_image = load_dataset_image(pair.before.image_id, pair.before.image_path)
                     after_image = load_dataset_image(pair.after.image_id, pair.after.image_path)
                     st.caption(

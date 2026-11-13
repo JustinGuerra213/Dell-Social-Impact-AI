@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 from PIL import Image
 
 from flood_app.analyzer import LocalQwenAnalyzer
-from flood_app.dataset import DatasetRepository
+from flood_app.dataset import DatasetRepository, filter_pairs_by_locality
 
 
 class DatasetRepositoryTests(unittest.TestCase):
@@ -73,6 +73,9 @@ class DatasetRepositoryTests(unittest.TestCase):
         self.assertEqual(pairs[0].before.image_id, "loc_before")
         self.assertEqual(pairs[0].after.image_id, "loc_after")
         self.assertEqual(pairs[0].label, "loc · Test location · Flood event")
+        self.assertEqual(filter_pairs_by_locality(pairs, "Test location"), pairs)
+        self.assertEqual(filter_pairs_by_locality(pairs, "Unknown locality"), [])
+        self.assertEqual(filter_pairs_by_locality(pairs, None), pairs)
 
 
 class LocalQwenAnalyzerTests(unittest.TestCase):
