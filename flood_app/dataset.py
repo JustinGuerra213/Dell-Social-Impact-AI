@@ -5,9 +5,10 @@ from __future__ import annotations
 import csv
 import io
 from pathlib import Path
+from urllib.parse import quote
 
-from huggingface_hub import hf_hub_download
 from PIL import Image
+import requests
 
 from flood_app.models import ImagePair, ImageRecord
 
@@ -23,14 +24,7 @@ class DatasetRepository:
 
     def list_pairs(self) -> list[ImagePair]:
         """Return the dataset's verified before/response pairs."""
-        csv_path = Path(
-            hf_hub_download(
-                repo_id=self.REPO_ID,
-                repo_type="dataset",
-                filename="image_metadata.csv",
-                cache_dir=str(self.cache_dir),
-            )
-        )
+        csv_path = self._download("image_metadata.csv")
         records: dict[str, ImageRecord] = {}
         with csv_path.open(encoding="utf-8", newline="") as handle:
             for row in csv.DictReader(handle):
@@ -54,14 +48,35 @@ class DatasetRepository:
 
     def load_image(self, record: ImageRecord) -> Image.Image:
         """Fetch one dataset image on demand and return it as RGB."""
-        local_path = hf_hub_download(
-            repo_id=self.REPO_ID,
-            repo_type="dataset",
-            filename=record.image_path,
-            cache_dir=str(self.cache_dir),
-        )
+        local_path = self._download(record.image_path)
         with Image.open(local_path) as image:
             return image.convert("RGB")
+
+    def _download(self, filename: str) -> Path:
+        """Return a locally cached dataset file, downloading it when needed."""
+        safe_path = Path(filename)
+        if safe_path.is_absolute() or ".." in safe_path.parts:
+            raise ValueError("Dataset file path is not safe.")
+        target = self.cache_dir / safe_path
+        if target.is_file():
+            return target
+        target.parent.mkdir(parents=True, exist_ok=True)
+        url = (
+            f"https://huggingface.co/datasets/{self.REPO_ID}/resolve/main/"
+            f"{quote(filename, safe='/')}"
+        )
+        response = requests.get(url, timeout=(15, 180), stream=True)
+        response.raise_for_status()
+        temporary = target.with_suffix(target.suffix + ".part")
+        try:
+            with temporary.open("wb") as handle:
+                for chunk in response.iter_content(chunk_size=1024 * 1024):
+                    if chunk:
+                        handle.write(chunk)
+            temporary.replace(target)
+        finally:
+            temporary.unlink(missing_ok=True)
+        return target
 
     @staticmethod
     def _record_from_row(row: dict[str, str]) -> ImageRecord:
