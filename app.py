@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import os
+from html import escape
 from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as components
 from PIL import Image
 
 from flood_app.analyzer import LocalQwenAnalyzer
@@ -185,6 +187,7 @@ def main() -> None:
             assessment,
             st.session_state.get("assessment_pair", ""),
             st.session_state.get("model_settings", {}),
+            coordinates=(pair.after.latitude, pair.after.longitude) if pair else None,
         )
 
 
@@ -192,6 +195,7 @@ def render_assessment(
     assessment: DamageAssessment,
     pair_label: str,
     model_settings: dict | None = None,
+    coordinates: tuple[float | None, float | None] | None = None,
 ) -> None:
     """Render the requested impact, observation, and limitation tabs."""
     st.divider()
@@ -205,6 +209,9 @@ def render_assessment(
             f"Qwen settings: temperature {model_settings['temperature']:.2f} · "
             f"maximum {model_settings['max_tokens']} tokens"
         )
+
+    st.subheader("Area map · Google Maps 3D")
+    render_location_map(coordinates)
 
     impact_tab, observed_tab, limitations_tab = st.tabs(
         ["Impact", "Observed changes", "Limitations"]
@@ -265,6 +272,44 @@ def render_impact_section(impact: dict, keys: list[str]) -> None:
         with st.container(border=True):
             st.markdown(f"**{label}**")
             st.write(impact.get(key) or "Not established from these images.")
+
+
+def render_location_map(coordinates: tuple[float | None, float | None] | None) -> None:
+    """Render the selected dataset coordinate in Google's 3D Maps API."""
+    if not coordinates or None in coordinates:
+        st.info("No coordinates available at this time")
+        return
+
+    latitude, longitude = coordinates
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        st.info("No coordinates available at this time")
+        return
+
+    api_key = os.getenv("GOOGLE_MAPS_API_KEY", "")
+    if not api_key:
+        st.info("Google Maps 3D is unavailable: configure GOOGLE_MAPS_API_KEY.")
+        return
+
+    map_html = f"""<!doctype html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+      html, body, gmp-map-3d {{ height: 100%; width: 100%; margin: 0; }}
+    </style>
+  </head>
+  <body>
+    <gmp-map-3d
+      mode="HYBRID"
+      center="{latitude},{longitude},0"
+      range="1400"
+      tilt="65"
+      heading="30">
+    </gmp-map-3d>
+    <script async src="https://maps.googleapis.com/maps/api/js?key={escape(api_key, quote=True)}&v=beta&libraries=maps3d"></script>
+  </body>
+</html>"""
+    components.html(map_html, height=430, scrolling=False)
 
 
 if __name__ == "__main__":

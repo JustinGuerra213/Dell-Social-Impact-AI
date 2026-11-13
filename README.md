@@ -16,8 +16,10 @@ The dataset includes 1,204 image metadata rows with explicit `paired_image_id` l
 - Python 3.10 or newer
 - A local OpenAI-compatible Qwen vision endpoint, such as vLLM, serving the model `Qwen/Qwen3-VL-8B-Instruct`
 - Network access the first time dataset metadata/images are downloaded
+- A Google Maps Platform API key with the Maps JavaScript API enabled to render the 3D map
 
 The app does not download the model. Set `QWEN_BASE_URL` and `QWEN_MODEL` when your local server uses different values.
+Set `GOOGLE_MAPS_API_KEY` to enable the Google Maps 3D area map. Restrict the key to the app's allowed HTTP referrers. If the selected UTSA pair has no coordinates, the report says “No coordinates available at this time.”
 
 ## Run locally
 
@@ -27,6 +29,7 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 export QWEN_BASE_URL=http://127.0.0.1:8000/v1
 export QWEN_MODEL=Qwen/Qwen3-VL-8B-Instruct
+export GOOGLE_MAPS_API_KEY=your_google_maps_api_key
 streamlit run app.py
 ```
 
