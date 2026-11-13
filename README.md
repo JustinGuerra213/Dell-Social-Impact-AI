@@ -19,7 +19,7 @@ The dataset includes 1,204 image metadata rows with explicit `paired_image_id` l
 - A Google Maps Platform API key with the Maps JavaScript API enabled to render the 3D map
 
 The app does not download the model. Set `QWEN_BASE_URL` and `QWEN_MODEL` when your local server uses different values.
-Set `GOOGLE_MAPS_API_KEY` to enable the Google Maps 3D area map. Restrict the key to the app's allowed HTTP referrers. If the selected UTSA pair has no coordinates, the report says “No coordinates available at this time.”
+Set `GOOGLE_MAPS_API_KEY` in the environment or `.streamlit/secrets.toml` to enable the Google Maps 3D area map. Enable the Maps JavaScript API in a Google Cloud project and restrict the key to the app's allowed HTTP referrers. If the selected UTSA pair has no coordinates, the report says “No coordinates available at this time.”
 
 ## Run locally
 

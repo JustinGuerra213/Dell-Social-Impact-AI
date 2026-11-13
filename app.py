@@ -210,11 +210,8 @@ def render_assessment(
             f"maximum {model_settings['max_tokens']} tokens"
         )
 
-    st.subheader("Area map · Google Maps 3D")
-    render_location_map(coordinates)
-
-    impact_tab, observed_tab, limitations_tab = st.tabs(
-        ["Impact", "Observed changes", "Limitations"]
+    impact_tab, observed_tab, limitations_tab, map_tab = st.tabs(
+        ["Impact", "Observed changes", "Limitations", "Area map (3D)"]
     )
     with impact_tab:
         st.markdown("#### Citizen impact")
@@ -255,6 +252,8 @@ def render_assessment(
                     "Image resolution, view angle, and occlusion may hide damage. "
                     "The photos cannot verify conditions inside structures or below floodwater."
                 )
+    with map_tab:
+        render_location_map(coordinates)
 
     st.download_button(
         "Download report as JSON",
@@ -286,6 +285,11 @@ def render_location_map(coordinates: tuple[float | None, float | None] | None) -
         return
 
     api_key = os.getenv("GOOGLE_MAPS_API_KEY", "")
+    if not api_key:
+        try:
+            api_key = st.secrets.get("GOOGLE_MAPS_API_KEY", "")
+        except Exception:
+            api_key = ""
     if not api_key:
         st.info("Google Maps 3D is unavailable: configure GOOGLE_MAPS_API_KEY.")
         return
