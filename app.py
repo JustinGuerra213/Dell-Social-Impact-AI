@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import hmac
 from pathlib import Path
 
 import streamlit as st
@@ -67,6 +68,8 @@ def main() -> None:
         layout="wide",
         initial_sidebar_state="expanded",
     )
+    if not require_access():
+        return
     st.title("🌊 FloodLens")
     st.caption("Before-and-after flood imagery · Local Qwen vision analysis")
     st.info(
@@ -215,6 +218,24 @@ def render_assessment(assessment: DamageAssessment, pair_label: str) -> None:
         mime="application/json",
     )
     st.caption("Dataset: UTSA Flood Images, CC BY-NC 4.0. Use is subject to the dataset’s non-commercial license.")
+
+
+def require_access() -> bool:
+    """Require a shared password when public access protection is configured."""
+    expected_password = os.getenv("FLOOD_APP_PASSWORD", "")
+    if not expected_password:
+        return True
+    if st.session_state.get("floodlens_authorized"):
+        return True
+
+    st.title("🌊 FloodLens")
+    st.subheader("Password protected")
+    supplied_password = st.text_input("Access password", type="password")
+    if supplied_password and hmac.compare_digest(supplied_password, expected_password):
+        st.session_state["floodlens_authorized"] = True
+        st.rerun()
+    st.info("Enter the access password to open this flood assessment app.")
+    return False
 
 
 if __name__ == "__main__":
