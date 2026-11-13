@@ -6,8 +6,9 @@ Streamlit app for comparing before-and-after flood imagery and producing a cauti
 
 - Browse linked before/response pairs from [UTSA Flood Images](https://huggingface.co/datasets/jennifer-fowler/UTSA-flood-images). Metadata is loaded first; image files download on demand.
 - Ask a local Qwen vision model about visible household and city impacts, infrastructure hazards, and an illustrative cost range.
-- Reports contain three tabs: impact, observed changes, and short image-based limitations.
+- The triage report includes impact, observed changes, limitations, weather distribution, and area map tabs.
 - Explore daily temperature and rainfall around each image date in an interactive JavaScript chart, using the pair's dataset coordinates.
+- View the selected dataset coordinate on an interactive JavaScript area map in the triage report.
 - Download the result as JSON.
 
 The dataset includes 1,204 image metadata rows with explicit `paired_image_id` links. It combines aerial imagery from different dates and sources. A visible change is not proof that flooding caused it. The dataset is licensed CC BY-NC 4.0; commercial use is not allowed under that license.
@@ -20,7 +21,7 @@ The dataset includes 1,204 image metadata rows with explicit `paired_image_id` l
 - Network access to retrieve historical weather context from Open-Meteo
 
 The app does not download the model. Set `QWEN_BASE_URL` and `QWEN_MODEL` when your local server uses different values.
-The weather explorer uses the Open-Meteo Historical Weather API to display daily mean temperature and rainfall for a window around the selected image date. It requires pair coordinates and an acquisition date. The values are gridded ERA5 reanalysis estimates rather than local gauge measurements. See the [Historical Weather API documentation](https://open-meteo.com/en/docs/historical-weather-api).
+The weather explorer uses the Open-Meteo Historical Weather API to display daily mean temperature and rainfall for a window around the selected image date. It requires pair coordinates and an acquisition date. The values are gridded ERA5 reanalysis estimates rather than local gauge measurements. See the [Historical Weather API documentation](https://open-meteo.com/en/docs/historical-weather-api). The area map uses Leaflet and OpenStreetMap tiles, shows the coordinate supplied by the dataset, and does not require a Google Maps API key. OpenStreetMap requires visible attribution and has a [tile usage policy](https://operations.osmfoundation.org/policies/tiles); use a dedicated tile provider if the app's usage grows beyond interactive evaluation.
 
 ## Run locally
 

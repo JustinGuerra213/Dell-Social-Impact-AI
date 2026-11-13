@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #172b3a; }
+    .map-app { border: 1px solid #d7e1e8; border-radius: 12px; overflow: hidden; background: #fff; }
+    .map-heading { padding: 13px 16px 10px; }
+    .map-heading strong { font-size: 15px; }
+    .map-heading p { margin: 4px 0 0; color: #5d7180; font-size: 12px; }
+    #map { height: 450px; width: 100%; background: #edf3f6; }
+    #status { margin: 0; padding: 10px 16px; color: #5d7180; font-size: 12px; }
+    .leaflet-popup-content { line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <main class="map-app">
+    <header class="map-heading">
+      <strong id="location-name"></strong>
+      <p id="coordinates"></p>
+    </header>
+    <div id="map" role="application" aria-label="Map showing the selected image pair location"></div>
+    <p id="status" role="status">Loading map…</p>
+  </main>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const latitude = __LATITUDE__;
+    const longitude = __LONGITUDE__;
+    const locality = __LOCALITY__;
+    document.getElementById('location-name').textContent = locality;
+    document.getElementById('coordinates').textContent = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+
+    if (!window.L) {
+      document.getElementById('status').textContent = 'The map library could not be loaded. Check the network connection and reload the report.';
+    } else {
+      const map = L.map('map', { scrollWheelZoom: false }).setView([latitude, longitude], 13);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>'
+      }).addTo(map);
+      const marker = L.marker([latitude, longitude]).addTo(map);
+      const popup = document.createElement('div');
+      const popupTitle = document.createElement('strong');
+      popupTitle.textContent = locality;
+      popup.append(popupTitle, document.createElement('br'), document.createTextNode(`${latitude.toFixed(5)}, ${longitude.toFixed(5)}`));
+      marker.bindPopup(popup).openPopup();
+      document.getElementById('status').textContent = 'Map centered on the coordinate recorded for this dataset pair. The marker may not represent the exact image footprint.';
+      setTimeout(() => map.invalidateSize(), 100);
+    }
+  </script>
+</body>
+</html>

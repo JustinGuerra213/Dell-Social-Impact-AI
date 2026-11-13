@@ -221,8 +221,8 @@ def render_assessment(
             f"maximum {model_settings['max_tokens']} tokens"
         )
 
-    impact_tab, observed_tab, limitations_tab, weather_tab = st.tabs(
-        ["Impact", "Observed changes", "Limitations", "Weather distribution"]
+    impact_tab, observed_tab, limitations_tab, weather_tab, area_map_tab = st.tabs(
+        ["Impact", "Observed changes", "Limitations", "Weather distribution", "Area map"]
     )
     with impact_tab:
         st.markdown("#### Citizen impact")
@@ -270,6 +270,12 @@ def render_assessment(
                 render_weather_explorer(coordinates, acquisition_date, locality)
         else:
             st.info("Weather data is unavailable for this report.")
+    with area_map_tab:
+        if weather_context:
+            coordinates, _, locality = weather_context
+            render_area_map(coordinates, locality)
+        else:
+            st.info("Map data is unavailable for this report.")
     st.download_button(
         "Download report as JSON",
         data=json.dumps(assessment.__dict__, indent=2),
@@ -315,6 +321,29 @@ def render_weather_explorer(
     locality_literal = json.dumps(locality or "Selected location").replace("<", "\\u003c")
     weather_html = weather_html.replace("__LOCALITY__", locality_literal)
     components.html(weather_html, height=760, scrolling=False)
+
+
+def render_area_map(
+    coordinates: tuple[float | None, float | None],
+    locality: str,
+) -> None:
+    """Embed an interactive JavaScript map centered on the selected pair."""
+    st.subheader("Selected image location")
+    if None in coordinates:
+        st.info("Map data is unavailable because this dataset pair has no coordinates.")
+        return
+
+    latitude, longitude = coordinates
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        st.info("Map data is unavailable because this pair has invalid coordinates.")
+        return
+
+    map_html = (APP_ROOT / "flood_app" / "area_map.html").read_text(encoding="utf-8")
+    map_html = map_html.replace("__LATITUDE__", json.dumps(latitude))
+    map_html = map_html.replace("__LONGITUDE__", json.dumps(longitude))
+    locality_literal = json.dumps(locality or "Selected image location").replace("<", "\\u003c")
+    map_html = map_html.replace("__LOCALITY__", locality_literal)
+    components.html(map_html, height=560, scrolling=False)
 
 
 if __name__ == "__main__":
