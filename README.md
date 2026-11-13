@@ -51,3 +51,5 @@ flood_app/dataset.py    Hugging Face pair and image access
 flood_app/analyzer.py   Local Qwen API client and assessment prompt
 ```
 
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the module responsibilities, service flow, deployment tunnel, and network boundaries.
+
