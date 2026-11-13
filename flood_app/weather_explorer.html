@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root { color-scheme: light; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #172b3a; background: #fff; }
+    .app { border: 1px solid #d7e1e8; border-radius: 12px; padding: 18px; background: #fbfdff; }
+    .top { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+    .place { color: #506474; font-size: 14px; margin: 3px 0 14px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    label { color: #3c5364; font-size: 13px; font-weight: 650; }
+    select { margin-left: 5px; padding: 7px 9px; border: 1px solid #b8c8d3; border-radius: 7px; color: #172b3a; background: white; }
+    .metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
+    .metric { padding: 11px 13px; border: 1px solid #dce6ec; border-radius: 8px; background: #fff; }
+    .metric span { display: block; color: #5d7180; font-size: 12px; }
+    .metric strong { display: block; margin-top: 4px; font-size: 20px; }
+    .chartbox { margin-top: 12px; padding: 10px; border: 1px solid #dce6ec; border-radius: 8px; background: white; }
+    .charttitle { margin: 0 0 8px; font-size: 13px; color: #425c6e; font-weight: 650; }
+    canvas { display: block; width: 100%; height: 210px; }
+    #distribution { height: 150px; }
+    .foot { color: #687e8d; font-size: 11px; line-height: 1.45; margin-top: 12px; }
+    .status { color: #506474; font-size: 13px; min-height: 18px; }
+    .error { color: #a12a2a; }
+    @media (max-width: 520px) { .metrics { grid-template-columns: 1fr; } .app { padding: 12px; } }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <div class="top">
+      <strong>Historical weather explorer</strong>
+      <div class="controls">
+        <label for="variable">Measure
+          <select id="variable"><option value="temperature">Mean temperature</option><option value="rain">Rainfall</option></select>
+        </label>
+        <label for="window">Window
+          <select id="window"><option value="14">14 days</option><option value="30" selected>30 days</option><option value="60">60 days</option><option value="90">90 days</option></select>
+        </label>
+      </div>
+    </div>
+    <p class="place" id="place"></p>
+    <p class="status" id="status" role="status">Loading historical weather data…</p>
+    <section class="metrics" aria-live="polite">
+      <div class="metric"><span id="stat1-label">Daily mean</span><strong id="stat1">—</strong></div>
+      <div class="metric"><span id="stat2-label">Highest day</span><strong id="stat2">—</strong></div>
+      <div class="metric"><span id="stat3-label">Days with rain</span><strong id="stat3">—</strong></div>
+    </section>
+    <section class="chartbox"><p class="charttitle" id="series-title">Daily mean temperature</p><canvas id="series" aria-label="Daily weather observations over time"></canvas></section>
+    <section class="chartbox"><p class="charttitle">Value distribution across the selected period</p><canvas id="distribution" aria-label="Histogram of daily weather values"></canvas></section>
+    <p class="foot">Historical, gridded reanalysis estimates from <a href="https://open-meteo.com/en/docs/historical-weather-api" target="_blank" rel="noopener">Open-Meteo</a> (ERA5). These are regional estimates, not measurements from a local gauge or weather station. Rainfall is daily rain accumulation in millimeters; temperature is daily mean at 2 m in °C.</p>
+  </main>
+  <script>
+    const latitude = __LATITUDE__;
+    const longitude = __LONGITUDE__;
+    const imageDate = __DATE__;
+    const locality = __LOCALITY__;
+    const statusEl = document.getElementById('status');
+    const placeEl = document.getElementById('place');
+    const variableEl = document.getElementById('variable');
+    const windowEl = document.getElementById('window');
+    let weather = null;
+    let requestId = 0;
+    placeEl.textContent = `${locality} · centered on image date ${imageDate} · ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+
+    function dateString(date) {
+      const year = date.getUTCFullYear();
+      const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(date.getUTCDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    function setStatus(message, isError = false) {
+      statusEl.textContent = message;
+      statusEl.className = isError ? 'status error' : 'status';
+    }
+
+    async function loadWeather() {
+      const request = ++requestId;
+      setStatus('Loading historical weather data…');
+      const center = new Date(`${imageDate}T00:00:00Z`);
+      const span = Number(windowEl.value);
+      const half = Math.floor(span / 2);
+      const start = new Date(center); start.setUTCDate(start.getUTCDate() - half);
+      const end = new Date(center); end.setUTCDate(end.getUTCDate() + span - half - 1);
+      const query = new URLSearchParams({
+        latitude: String(latitude), longitude: String(longitude),
+        start_date: dateString(start), end_date: dateString(end),
+        daily: 'temperature_2m_mean,rain_sum', timezone: 'auto'
+      });
+      try {
+        const response = await fetch(`https://archive-api.open-meteo.com/v1/archive?${query.toString()}`);
+        if (!response.ok) throw new Error(`Weather service returned HTTP ${response.status}.`);
+        const payload = await response.json();
+        if (request !== requestId) return;
+        if (!payload.daily?.time?.length) throw new Error('No historical weather values were returned for this date range.');
+        weather = payload.daily;
+        setStatus(`${weather.time.length} daily records · ${dateString(start)} to ${dateString(end)}`);
+        draw();
+      } catch (error) {
+        if (request !== requestId) return;
+        setStatus(`${error.message} Check the connection or try a shorter window.`, true);
+      }
+    }
+
+    function draw() {
+      if (!weather) return;
+      const isTemp = variableEl.value === 'temperature';
+      const field = isTemp ? 'temperature_2m_mean' : 'rain_sum';
+      const values = weather[field].map(value => value === null ? null : Number(value));
+      const valid = values.filter(value => Number.isFinite(value));
+      if (!valid.length) { setStatus('No values are available for this measure and date range.', true); return; }
+      const unit = isTemp ? '°C' : ' mm';
+      const mean = valid.reduce((sum, value) => sum + value, 0) / valid.length;
+      const maximum = Math.max(...valid);
+      const rainyDays = weather.rain_sum.filter(value => Number(value) > 0).length;
+      document.getElementById('stat1-label').textContent = isTemp ? 'Mean temperature' : 'Average daily rainfall';
+      document.getElementById('stat1').textContent = `${mean.toFixed(1)}${unit}`;
+      document.getElementById('stat2-label').textContent = isTemp ? 'Warmest day' : 'Wettest day';
+      document.getElementById('stat2').textContent = `${maximum.toFixed(1)}${unit}`;
+      document.getElementById('stat3-label').textContent = 'Days with rain';
+      document.getElementById('stat3').textContent = `${rainyDays} / ${weather.time.length}`;
+      document.getElementById('series-title').textContent = isTemp ? 'Daily mean temperature' : 'Daily rainfall';
+      drawSeries(values, isTemp, unit);
+      drawHistogram(valid, isTemp, unit);
+    }
+
+    function setupCanvas(canvas) {
+      const ratio = window.devicePixelRatio || 1;
+      const width = Math.max(canvas.clientWidth, 280);
+      const height = canvas.clientHeight;
+      canvas.width = width * ratio; canvas.height = height * ratio;
+      const context = canvas.getContext('2d');
+      context.scale(ratio, ratio);
+      return { context, width, height };
+    }
+
+    function drawSeries(values, isTemp, unit) {
+      const canvas = document.getElementById('series');
+      const { context: ctx, width, height } = setupCanvas(canvas);
+      const pad = { left: 48, right: 12, top: 12, bottom: 28 };
+      const data = values.filter(Number.isFinite);
+      let low = isTemp ? Math.floor(Math.min(...data) - 2) : 0;
+      let high = Math.ceil(Math.max(...data) + (isTemp ? 2 : 1));
+      if (high <= low) high = low + 1;
+      const plotW = width - pad.left - pad.right, plotH = height - pad.top - pad.bottom;
+      ctx.font = '11px system-ui'; ctx.strokeStyle = '#e4ebf0'; ctx.fillStyle = '#627787'; ctx.lineWidth = 1;
+      for (let tick = 0; tick <= 4; tick++) {
+        const value = low + (high - low) * tick / 4;
+        const y = pad.top + plotH - plotH * tick / 4;
+        ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(width - pad.right, y); ctx.stroke();
+        ctx.fillText(`${value.toFixed(0)}${unit}`, 3, y + 4);
+      }
+      const step = plotW / values.length;
+      values.forEach((value, index) => {
+        if (!Number.isFinite(value)) return;
+        const x = pad.left + index * step + step * 0.15;
+        const barW = Math.max(1, step * 0.7);
+        const yValue = pad.top + plotH - ((value - low) / (high - low)) * plotH;
+        if (isTemp) {
+          if (index > 0 && Number.isFinite(values[index - 1])) {
+            const prevX = pad.left + (index - 0.5) * step;
+            const prevY = pad.top + plotH - ((values[index - 1] - low) / (high - low)) * plotH;
+            ctx.strokeStyle = '#db7045'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(prevX, prevY); ctx.lineTo(x + barW / 2, yValue); ctx.stroke();
+          }
+          ctx.fillStyle = '#db7045'; ctx.beginPath(); ctx.arc(x + barW / 2, yValue, 2.5, 0, Math.PI * 2); ctx.fill();
+        } else {
+          ctx.fillStyle = '#3b82a0';
+          ctx.fillRect(x, yValue, barW, Math.max(0, pad.top + plotH - yValue));
+        }
+      });
+      ctx.fillStyle = '#627787';
+      const labels = [0, Math.floor((values.length - 1) / 2), values.length - 1];
+      labels.forEach(index => {
+        const x = pad.left + index * step;
+        ctx.fillText(weather.time[index], Math.min(x, width - 74), height - 7);
+      });
+    }
+
+    function drawHistogram(values, isTemp, unit) {
+      const canvas = document.getElementById('distribution');
+      const { context: ctx, width, height } = setupCanvas(canvas);
+      const pad = { left: 36, right: 12, top: 12, bottom: 28 };
+      const min = Math.min(...values), max = Math.max(...values);
+      const bins = 8;
+      const binWidth = max === min ? 1 : (max - min) / bins;
+      const counts = Array(bins).fill(0);
+      values.forEach(value => counts[Math.min(bins - 1, Math.floor((value - min) / binWidth))]++);
+      const maxCount = Math.max(...counts, 1), plotW = width - pad.left - pad.right, plotH = height - pad.top - pad.bottom;
+      ctx.font = '11px system-ui'; ctx.strokeStyle = '#e4ebf0'; ctx.fillStyle = '#627787';
+      ctx.beginPath(); ctx.moveTo(pad.left, pad.top + plotH); ctx.lineTo(width - pad.right, pad.top + plotH); ctx.stroke();
+      const step = plotW / bins;
+      counts.forEach((count, index) => {
+        const barH = count / maxCount * plotH;
+        ctx.fillStyle = isTemp ? '#db7045' : '#3b82a0';
+        ctx.fillRect(pad.left + index * step + 2, pad.top + plotH - barH, Math.max(1, step - 4), barH);
+        if (count) { ctx.fillStyle = '#425c6e'; ctx.fillText(String(count), pad.left + index * step + step / 2 - 3, pad.top + plotH - barH - 3); }
+      });
+      const upper = max === min ? min + 1 : max;
+      ctx.fillStyle = '#627787';
+      ctx.fillText(`${min.toFixed(1)}${unit}`, pad.left, height - 7);
+      ctx.fillText(`${upper.toFixed(1)}${unit}`, width - 54, height - 7);
+      ctx.fillText('days', 3, 15);
+    }
+
+    variableEl.addEventListener('change', draw);
+    windowEl.addEventListener('change', loadWeather);
+    window.addEventListener('resize', draw);
+    loadWeather();
+  </script>
+</body>
+</html>

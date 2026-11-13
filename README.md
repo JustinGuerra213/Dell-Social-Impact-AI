@@ -7,6 +7,7 @@ Streamlit app for comparing before-and-after flood imagery and producing a cauti
 - Browse linked before/response pairs from [UTSA Flood Images](https://huggingface.co/datasets/jennifer-fowler/UTSA-flood-images). Metadata is loaded first; image files download on demand.
 - Ask a local Qwen vision model about visible household and city impacts, infrastructure hazards, and an illustrative cost range.
 - Reports contain three tabs: impact, observed changes, and short image-based limitations.
+- Explore daily temperature and rainfall around each image date in an interactive JavaScript chart, using the pair's dataset coordinates.
 - Download the result as JSON.
 
 The dataset includes 1,204 image metadata rows with explicit `paired_image_id` links. It combines aerial imagery from different dates and sources. A visible change is not proof that flooding caused it. The dataset is licensed CC BY-NC 4.0; commercial use is not allowed under that license.
@@ -16,10 +17,10 @@ The dataset includes 1,204 image metadata rows with explicit `paired_image_id` l
 - Python 3.10 or newer
 - A local OpenAI-compatible Qwen vision endpoint, such as vLLM, serving the model `Qwen/Qwen3-VL-8B-Instruct`
 - Network access the first time dataset metadata/images are downloaded
-- A Google Maps Platform API key with the Maps JavaScript API enabled to render the 3D map
+- Network access to retrieve historical weather context from Open-Meteo
 
 The app does not download the model. Set `QWEN_BASE_URL` and `QWEN_MODEL` when your local server uses different values.
-Set `GOOGLE_MAPS_API_KEY` in the environment or `.streamlit/secrets.toml` to enable the Google Maps 3D area map. Enable the Maps JavaScript API in a Google Cloud project and restrict the key to the app's allowed HTTP referrers. If the selected UTSA pair has no coordinates, the report says “No coordinates available at this time.”
+The weather explorer uses the Open-Meteo Historical Weather API to display daily mean temperature and rainfall for a window around the selected image date. It requires pair coordinates and an acquisition date. The values are gridded ERA5 reanalysis estimates rather than local gauge measurements. See the [Historical Weather API documentation](https://open-meteo.com/en/docs/historical-weather-api).
 
 ## Run locally
 
@@ -29,7 +30,6 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 export QWEN_BASE_URL=http://127.0.0.1:8000/v1
 export QWEN_MODEL=Qwen/Qwen3-VL-8B-Instruct
-export GOOGLE_MAPS_API_KEY=your_google_maps_api_key
 streamlit run app.py
 ```
 

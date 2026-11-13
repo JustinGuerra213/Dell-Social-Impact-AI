@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from html import escape
+import re
 from pathlib import Path
 
 import streamlit as st
@@ -166,6 +166,13 @@ def main() -> None:
         if details:
             st.caption(f"Dataset context: {details}")
 
+        st.divider()
+        render_weather_explorer(
+            (pair.after.latitude, pair.after.longitude),
+            pair.after.acquisition_date or pair.before.acquisition_date,
+            pair.after.locality or pair.before.locality,
+        )
+
     if analyze:
         with st.spinner("Qwen is comparing both images locally…"):
             try:
@@ -190,7 +197,6 @@ def main() -> None:
             assessment,
             st.session_state.get("assessment_pair", ""),
             st.session_state.get("model_settings", {}),
-            coordinates=(pair.after.latitude, pair.after.longitude) if pair else None,
         )
 
 
@@ -198,7 +204,6 @@ def render_assessment(
     assessment: DamageAssessment,
     pair_label: str,
     model_settings: dict | None = None,
-    coordinates: tuple[float | None, float | None] | None = None,
 ) -> None:
     """Render the requested impact, observation, and limitation tabs."""
     st.divider()
@@ -213,8 +218,8 @@ def render_assessment(
             f"maximum {model_settings['max_tokens']} tokens"
         )
 
-    impact_tab, observed_tab, limitations_tab, map_tab = st.tabs(
-        ["Impact", "Observed changes", "Limitations", "Area map (3D)"]
+    impact_tab, observed_tab, limitations_tab = st.tabs(
+        ["Impact", "Observed changes", "Limitations"]
     )
     with impact_tab:
         st.markdown("#### Citizen impact")
@@ -255,9 +260,6 @@ def render_assessment(
                     "Image resolution, view angle, and occlusion may hide damage. "
                     "The photos cannot verify conditions inside structures or below floodwater."
                 )
-    with map_tab:
-        render_location_map(coordinates)
-
     st.download_button(
         "Download report as JSON",
         data=json.dumps(assessment.__dict__, indent=2),
@@ -276,47 +278,33 @@ def render_impact_section(impact: dict, keys: list[str]) -> None:
             st.write(impact.get(key) or "Not established from these images.")
 
 
-def render_location_map(coordinates: tuple[float | None, float | None] | None) -> None:
-    """Render the selected dataset coordinate in Google's 3D Maps API."""
-    if not coordinates or None in coordinates:
-        st.info("No coordinates available at this time")
+def render_weather_explorer(
+    coordinates: tuple[float | None, float | None],
+    acquisition_date: str,
+    locality: str,
+) -> None:
+    """Embed the interactive JavaScript historical weather explorer."""
+    st.subheader("Temperature and rainfall distribution")
+    if None in coordinates:
+        st.info("Weather data is unavailable because this dataset pair has no coordinates.")
         return
 
     latitude, longitude = coordinates
     if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
-        st.info("No coordinates available at this time")
+        st.info("Weather data is unavailable because this pair has invalid coordinates.")
+        return
+    date_match = re.search(r"\d{4}-\d{2}-\d{2}", acquisition_date or "")
+    if not date_match:
+        st.info("Weather data is unavailable because this pair has no recorded image date.")
         return
 
-    api_key = os.getenv("GOOGLE_MAPS_API_KEY", "")
-    if not api_key:
-        try:
-            api_key = st.secrets.get("GOOGLE_MAPS_API_KEY", "")
-        except Exception:
-            api_key = ""
-    if not api_key:
-        st.info("Google Maps 3D is unavailable: configure GOOGLE_MAPS_API_KEY.")
-        return
-
-    map_html = f"""<!doctype html>
-<html>
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-      html, body, gmp-map-3d {{ height: 100%; width: 100%; margin: 0; }}
-    </style>
-  </head>
-  <body>
-    <gmp-map-3d
-      mode="HYBRID"
-      center="{latitude},{longitude},0"
-      range="1400"
-      tilt="65"
-      heading="30">
-    </gmp-map-3d>
-    <script async src="https://maps.googleapis.com/maps/api/js?key={escape(api_key, quote=True)}&v=beta&libraries=maps3d"></script>
-  </body>
-</html>"""
-    components.html(map_html, height=430, scrolling=False)
+    weather_html = (APP_ROOT / "flood_app" / "weather_explorer.html").read_text(encoding="utf-8")
+    weather_html = weather_html.replace("__LATITUDE__", json.dumps(latitude))
+    weather_html = weather_html.replace("__LONGITUDE__", json.dumps(longitude))
+    weather_html = weather_html.replace("__DATE__", json.dumps(date_match.group(0)))
+    locality_literal = json.dumps(locality or "Selected location").replace("<", "\\u003c")
+    weather_html = weather_html.replace("__LOCALITY__", locality_literal)
+    components.html(weather_html, height=760, scrolling=False)
 
 
 if __name__ == "__main__":
